@@ -5,47 +5,53 @@ const { SUCCESS_MESSAGES } = require("./helper/messages");
 const { Server } = require("socket.io");
 
 let server;
-server = app.listen(config.port, () => {
-   dbConnection()
-  //  console.log(`${SUCCESS_MESSAGES.SERVER_STARTED} ${config.port}`)
-});
 
-const io = new Server(server, {
-  cors: {
-    origin: "*", // or your frontend domain
-    methods: ["GET", "POST"]
-  }
-});
+const startServer = async () => {
+  try {
+    await dbConnection(); // ⬅️ WAIT until DB connects first
 
-io.on("connection", (socket) => {
-  // console.log("New client connected: ", socket.id);
-
-  // Join a chat room
-  socket.on("joinRoom", (roomId) => {
-    socket.join(roomId);
-    // console.log(`Socket ${socket.id} joined room ${roomId}`);
-  });
-
-  // Receive and broadcast messages
-  socket.on("sendMessage", (messageData) => {
-    if (Array.isArray(messageData)) {
-    messageData.forEach((msg) => {
-      io.to(msg.chat._id).emit("receiveMessage", msg);
+    server = app.listen(config.port, () => {
+      console.log(`${SUCCESS_MESSAGES.SERVER_STARTED} ${config.port}`);
     });
-  } else {
-    io.to(messageData.chat._id).emit("receiveMessage", messageData);
-  }
-  });
 
-  // Handle disconnect
-  socket.on("disconnect", () => {
-    // console.log("Client disconnected: ", socket.id);
-  });
-});
+    const io = new Server(server, {
+      cors: {
+        origin: "*", // your frontend origin in production
+        methods: ["GET", "POST"]
+      }
+    });
+
+    io.on("connection", (socket) => {
+      socket.on("joinRoom", (roomId) => {
+        socket.join(roomId);
+      });
+
+      socket.on("sendMessage", (messageData) => {
+        if (Array.isArray(messageData)) {
+          messageData.forEach((msg) => {
+            io.to(msg.chat._id).emit("receiveMessage", msg);
+          });
+        } else {
+          io.to(messageData.chat._id).emit("receiveMessage", messageData);
+        }
+      });
+
+      socket.on("disconnect", () => {
+        // disconnected
+      });
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+};
+
+startServer();
+
+// graceful shutdown
 const exitHandler = () => {
   if (server) {
     server.close(() => {
-      // console.log("Server closed");
       process.exit(1);
     });
   } else {
