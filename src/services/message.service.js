@@ -4,21 +4,32 @@ const { ERROR_MESSAGES } = require("../helper/messages");
 const messageModel = require("../model/message.schema");
 const chatModel = require("../model/chat.schema");
 
-const sendMessage  = async (authId, userBody) => {
- const { content, chatId } = userBody;
+const sendMessage = async (authId, userBody, fileUrls = []) => {
+  const { content, chatId } = userBody;
 
-    let newMessage = await messageModel.create({
-        sender: authId,
-        content,
-        chat: chatId,
-    });
+  const filesArray = fileUrls.map((file) => ({
+    url: file.path,
+    fileName: file.originalName,
+    type: file.mimetype?.split("/")[0] || "file", // auto-detect "image", "video", etc.
+  }));
+
+  let newMessage = await messageModel.create({
+    sender: authId,
+    chat: chatId,
+    content: {
+      message: content?.message || "",
+      files: filesArray,
+    },
+  });
 
   newMessage = await newMessage.populate([
-  { path: "sender", select: "name" },
-  { path: "chat" }
-]);
-    await chatModel.findByIdAndUpdate(chatId, { latestMessage: newMessage });
-    return newMessage;
+    { path: "sender", select: "name" },
+    { path: "chat" },
+  ]);
+
+  await chatModel.findByIdAndUpdate(chatId, { latestMessage: newMessage });
+
+  return newMessage;
 };
 
 
@@ -40,11 +51,17 @@ const fileHanlder = async (authId, chatId, fileUrls) => {
   let messages = await Promise.all(
     fileUrls.map((file) =>
       messageModel.create({
-        chat: chatId,
-        content: file.path,
-        fileName: file.originalName,
-        type: "file",
         sender: authId,
+        chat: chatId,
+        content: {
+          files: [
+            {
+              url: file.path,
+              fileName: file.originalName,
+              type: file.mimetype?.split("/")[0] || "file", // auto-detect "image", "video", "application"
+            },
+          ],
+        },
       })
     )
   );
@@ -58,7 +75,6 @@ const fileHanlder = async (authId, chatId, fileUrls) => {
   // Update latest message in chat (usually you update with the last one only)
   const latestMessage = messages[messages.length - 1];
   await chatModel.findByIdAndUpdate(chatId, { latestMessage });
-
   return messages;
 };
 
