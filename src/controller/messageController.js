@@ -3,7 +3,7 @@ const catchAsyncError = require("../utils/catchAsync");
 const {HTTP_STATUS_CODES} = require("@simple-node/http-status-codes");
 
 exports.sendMessage  = catchAsyncError(async (req, res) => {
-       const fileUrls = req.files.map(file => ({path:file.path, originalName: file.originalname}));
+       const fileUrls = req.files && req.files.map(file => ({path:file.path, originalName: file.originalname}));
        const newMessage = await messageService.sendMessage(req.user._id, req.body, fileUrls);
         res.status(HTTP_STATUS_CODES.OK).send({data:newMessage})
 })

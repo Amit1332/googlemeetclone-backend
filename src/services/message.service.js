@@ -5,7 +5,7 @@ const messageModel = require("../model/message.schema");
 const chatModel = require("../model/chat.schema");
 
 const sendMessage = async (authId, userBody, fileUrls = []) => {
-  const { content, chatId } = userBody;
+  const { message, chatId } = userBody;
 
   const filesArray = fileUrls.map((file) => ({
     url: file.path,
@@ -17,7 +17,7 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
     sender: authId,
     chat: chatId,
     content: {
-      message: content?.message || "",
+      message: message || "",
       files: filesArray,
     },
   });
