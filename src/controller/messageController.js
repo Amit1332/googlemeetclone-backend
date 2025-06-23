@@ -3,7 +3,7 @@ const catchAsyncError = require("../utils/catchAsync");
 const {HTTP_STATUS_CODES} = require("@simple-node/http-status-codes");
 
 exports.sendMessage  = catchAsyncError(async (req, res) => {
-       const fileUrls = req.files && req.files.map(file => ({path:file.path, originalName: file.originalname}));
+       const fileUrls = req.files && req.files.map(file => ({path:file.path, originalName: file.originalname, filename:file.filename, mimetype:file.mimetype}));
        const newMessage = await messageService.sendMessage(req.user._id, req.body, fileUrls);
         res.status(HTTP_STATUS_CODES.OK).send({data:newMessage})
 })
@@ -16,8 +16,13 @@ exports.getMessages = catchAsyncError(async (req, res, next) => {
 })
 
 
-exports.fileHanlder =catchAsyncError( async (req, res, next) => {
-     const fileUrls = req.files.map(file => ({path:file.path, originalName: file.originalname}));
-    const messages = await messageService.fileHanlder(req.user._id,req.body.chatId,fileUrls);
-   res.status(HTTP_STATUS_CODES.OK).send({data:messages});
-})
+
+exports.deleteMessage = catchAsyncError(async (req, res) => {
+  const { messageId } = req.params;
+  const result = await messageService.deleteMessage(req.user._id, messageId);
+
+  res.status(HTTP_STATUS_CODES.OK).json({
+    success: true,
+    data: result,
+  });
+});

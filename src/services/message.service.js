@@ -3,6 +3,7 @@ const ApiError = require("../utils/ApiError");
 const { ERROR_MESSAGES } = require("../helper/messages");
 const messageModel = require("../model/message.schema");
 const chatModel = require("../model/chat.schema");
+const cloudinary = require("cloudinary").v2
 
 const sendMessage = async (authId, userBody, fileUrls = []) => {
   const { message, chatId } = userBody;
@@ -11,6 +12,7 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
     url: file.path,
     fileName: file.originalName,
     type: file.mimetype?.split("/")[0] || "file", // auto-detect "image", "video", etc.
+    public_id: file.filename,
   }));
 
   let newMessage = await messageModel.create({
@@ -46,43 +48,48 @@ const getMessages = async (authId, chatId) => {
 };
 
 
-const fileHanlder = async (authId, chatId, fileUrls) => {
-  // Create all messages
-  let messages = await Promise.all(
-    fileUrls.map((file) =>
-      messageModel.create({
-        sender: authId,
-        chat: chatId,
-        content: {
-          files: [
-            {
-              url: file.path,
-              fileName: file.originalName,
-              type: file.mimetype?.split("/")[0] || "file", // auto-detect "image", "video", "application"
-            },
-          ],
-        },
-      })
-    )
-  );
 
-  // Populate all messages using model-level populate
-  messages = await messageModel.populate(messages, [
-    { path: "sender", select: "name" },
-    { path: "chat" },
-  ]);
+const deleteMessage = async (authId, messageId) => {
+  const message = await messageModel.findById(messageId);
+  if (!message) {
+    throw new ApiError(HTTP_STATUS_CODES.NOT_FOUND, "Message not found");
+  }
 
-  // Update latest message in chat (usually you update with the last one only)
-  const latestMessage = messages[messages.length - 1];
-  await chatModel.findByIdAndUpdate(chatId, { latestMessage });
-  return messages;
+  if (message.sender.toString() !== authId.toString()) {
+    throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Not authorized to delete this message");
+  }
+
+  // Delete files from Cloudinary
+  const files = message.content?.files || [];
+  for (const file of files) {
+    if (file.public_id) {
+      try {
+        await cloudinary.uploader.destroy(file.public_id);
+      } catch (err) {
+        console.error(`Failed to delete Cloudinary file ${file.public_id}`, err);
+      }
+    }
+  }
+
+  // Delete the message
+  await messageModel.findByIdAndDelete(messageId);
+
+  // Update chat latestMessage
+  const chat = await chatModel.findById(message.chat);
+  if (chat.latestMessage?.toString() === messageId) {
+    const latestMsg = await messageModel
+      .findOne({ chat: message.chat })
+      .sort({ createdAt: -1 });
+    await chatModel.findByIdAndUpdate(message.chat, {
+      latestMessage: latestMsg || null,
+    });
+  }
+
+  return { message: "Message and associated files deleted successfully" };
 };
-
-
-
 
 module.exports = { 
  sendMessage ,
  getMessages,
- fileHanlder
+ deleteMessage
 };

@@ -1,5 +1,5 @@
 const express = require('express')
-const { chatController, messageController } = require('../../controller');
+const { messageController } = require('../../controller');
 const auth = require('../../middleware/auth');
 const upload = require('../../utils/multer');
 const Router = express.Router()
@@ -11,7 +11,8 @@ Router.post(
   messageController.sendMessage
 );
 Router.get('/:chatId',  auth.isAuthenticatedUser, messageController.getMessages);
-Router.post('/upload/file',  auth.isAuthenticatedUser,upload.array("files", 10), messageController.fileHanlder);
+Router.delete("/:messageId", auth.isAuthenticatedUser, messageController.deleteMessage);
+
 
 
 

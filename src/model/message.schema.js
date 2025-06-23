@@ -12,6 +12,7 @@ const Schema  = new mongoose.Schema(
           url: { type: String, required: true },
           fileName: { type: String },
           type: { type: String }, 
+          public_id:{ type: String },
         }
       ]
     },

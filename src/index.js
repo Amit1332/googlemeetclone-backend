@@ -35,6 +35,9 @@ const startServer = async () => {
           io.to(messageData.chat._id).emit("receiveMessage", messageData);
         }
       });
+        socket.on("deleteMessage", ({ messageId, chatId }) => {
+    io.to(chatId).emit("messageDeleted", { messageId });
+  });
 
       socket.on("disconnect", () => {
         // disconnected
