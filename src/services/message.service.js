@@ -6,7 +6,7 @@ const chatModel = require("../model/chat.schema");
 const cloudinary = require("cloudinary").v2
 
 const sendMessage = async (authId, userBody, fileUrls = []) => {
-  const { message, chatId } = userBody;
+  const { message, chatId, replyTo } = userBody;
 
   const filesArray = fileUrls.map((file) => ({
     url: file.path,
@@ -22,15 +22,14 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
       message: message || "",
       files: filesArray,
     },
+     replyTo: replyTo || null,
   });
 
   newMessage = await newMessage.populate([
     { path: "sender", select: "name" },
-    { path: "chat" },
+    { path: "chat" }, { path: "replyTo", select: "content sender" }
   ]);
-
   await chatModel.findByIdAndUpdate(chatId, { latestMessage: newMessage });
-
   return newMessage;
 };
 
@@ -44,7 +43,7 @@ const getMessages = async (authId, chatId) => {
 
   return await messageModel.find({ chat: chatId })
     .populate("sender", "name")
-    .populate("chat");
+    .populate("chat").populate("replyTo")
 };
 
 
