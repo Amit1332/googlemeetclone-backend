@@ -26,3 +26,13 @@ exports.deleteMessage = catchAsyncError(async (req, res) => {
     data: result,
   });
 });
+
+
+exports.getDocuments = catchAsyncError(async (req, res) => {
+  const { userId } = req.params;
+  const result = await messageService.getDocuments(req.user._id,userId);
+  res.status(HTTP_STATUS_CODES.OK).json({
+    success: true,
+    data: result,
+  });
+});

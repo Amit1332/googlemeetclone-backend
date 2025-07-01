@@ -47,6 +47,25 @@ const getMessages = async (authId, chatId) => {
 };
 
 
+const getDocuments = async (authId, userId) => {
+   chat = await chatModel.findOne({
+    isGroupChat: false,
+    users: { $all: [authId, userId], $size: 2 } // exactly those 2 users
+  })
+   if (!chat.users.includes(authId)) {
+    throw new Error("Unauthorized access to this chat");
+  }
+
+  let data =  await messageModel.find({ chat: chat._id })
+//   data =  data.map((el) => el.content.files).filter((e) =>e.length).flat(1)
+  data =  data.map((el) => el.content.files)
+
+  return data
+  
+   
+};
+
+
 
 const deleteMessage = async (authId, messageId) => {
   const message = await messageModel.findById(messageId);
@@ -90,5 +109,6 @@ const deleteMessage = async (authId, messageId) => {
 module.exports = { 
  sendMessage ,
  getMessages,
- deleteMessage
+ deleteMessage,
+ getDocuments
 };

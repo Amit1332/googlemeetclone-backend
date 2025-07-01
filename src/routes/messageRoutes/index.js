@@ -11,6 +11,8 @@ Router.post(
   messageController.sendMessage
 );
 Router.get('/:chatId',  auth.isAuthenticatedUser, messageController.getMessages);
+Router.get('/documents/:userId',auth.isAuthenticatedUser, messageController.getDocuments);
+
 Router.delete("/:messageId", auth.isAuthenticatedUser, messageController.deleteMessage);
 
 
