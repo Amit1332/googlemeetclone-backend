@@ -5,8 +5,8 @@ const bcrypt  = require('bcryptjs')
 const Schema  = new mongoose.Schema({
     name: {
         type:String,
-        min:[5, "name should be greater than 5 char"],
-        max:[10, "name can not  be greater than 5 char."]
+        min:[3, "name should be greater than 3 char"],
+        max:[20, "name can not  be greater than 20 char."]
     },
     email:{
         type:String,

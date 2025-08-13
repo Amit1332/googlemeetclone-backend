@@ -17,6 +17,8 @@ Router.post(
   authController.login
 );
 
+Router.post("/google",  authController.googleLogin);
+
 Router.post(
   "/logout",
   validate(authValidation.logout),

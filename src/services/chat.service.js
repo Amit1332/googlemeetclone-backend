@@ -1,7 +1,9 @@
 const {HTTP_STATUS_CODES} = require("@simple-node/http-status-codes");
 const ApiError = require("../utils/ApiError");
-const { ERROR_MESSAGES } = require("../helper/messages");
+const { ERROR_MESSAGES, SUCCESS_MESSAGES } = require("../helper/messages");
 const chatModel = require("../model/chat.schema");
+const messageModel = require("../model/message.schema");
+
 
 const accessChat = async (authId, userId) => {
   // Prevent self-chat logic
@@ -32,6 +34,63 @@ else{
 };
 
 
+// const deleteChat = async (authId, chatId) => {
+//   // Find the chat and ensure the auth user is part of it
+//   const chat = await chatModel.findOne({
+//     _id: chatId,
+//     users: authId, // ensures the user is part of the chat
+//   });
+
+//   if (!chat) {
+//     throw new ApiError(
+//       HTTP_STATUS_CODES.NOT_FOUND,
+//       ERROR_MESSAGES.CHAT_NOT_FOUND || "Chat not found"
+//     );
+//   }
+
+//   // Delete all messages for that chat
+//   await messageModel.deleteMany({ chat: chatId });
+
+//   // Delete the chat itself
+//   await chatModel.deleteOne({ _id: chatId });
+
+//   return { message: SUCCESS_MESSAGES.DELETED_CHAT };
+// };
+
+
+
+const deleteChat = async (authUserId, otherUserId) => {
+  // Find the chat between the authenticated user and the given userId
+  console.log("authUserId", authUserId, "otherUserId", otherUserId);
+  
+  const chat = await chatModel.findOne({
+    isGroupChat: false,
+    $and: [
+      { users: { $elemMatch: { $eq: authUserId } } },
+      { users: { $elemMatch: { $eq: otherUserId } } }
+    ]
+  });
+
+  if (!chat) {
+    throw new ApiError(
+      HTTP_STATUS_CODES.NOT_FOUND,
+      ERROR_MESSAGES.CHAT_NOT_FOUND || "Chat not found"
+    );
+  }
+
+  // Delete all messages linked to this chat
+  await messageModel.deleteMany({ chat: chat._id });
+
+  // Delete the chat itself
+  await chatModel.findByIdAndDelete(chat._id);
+
+ return { message: SUCCESS_MESSAGES.DELETED_CHAT };
+};
+
+
+
+
 module.exports = {
-accessChat
+accessChat,
+deleteChat
 };

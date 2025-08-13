@@ -14,6 +14,12 @@ Router.get(
   auth.isAuthenticatedUser,
   userController.users
 );
+
+Router.get(
+  "/chatted-users",
+  auth.isAuthenticatedUser,
+  userController.chattedUsers 
+);
 Router.get(
   "/:id",
   auth.isAuthenticatedUser,

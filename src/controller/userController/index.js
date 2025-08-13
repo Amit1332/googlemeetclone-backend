@@ -17,3 +17,9 @@ exports.getUserDetails = catchAsyncError(async (req, res, next) => {
     const user = await userService.userDetails(req.params.id);
     res.status(HTTP_STATUS_CODES.OK).send({data:user})
 })
+
+
+exports.chattedUsers = catchAsyncError(async (req, res, next) => {
+    const users = await userService.getChattedUsers(req.user._id);
+    res.status(HTTP_STATUS_CODES.OK).send({ data: users });
+});

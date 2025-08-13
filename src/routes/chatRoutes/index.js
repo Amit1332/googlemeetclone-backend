@@ -10,4 +10,9 @@ Router.post(
   chatController.accessChatHistory
 );
 
+Router.delete(
+  "/:userId",
+  auth.isAuthenticatedUser,
+  chatController.deleteChatHistory
+);
 module.exports = Router
