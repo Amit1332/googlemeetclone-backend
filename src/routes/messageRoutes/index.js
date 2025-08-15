@@ -1,13 +1,23 @@
 const express = require('express')
 const { messageController } = require('../../controller');
 const auth = require('../../middleware/auth');
-const upload = require('../../utils/multer');
+
+const { uploadFiles } = require('../../middleware/uploadFiles');
 const Router = express.Router()
+
+// Router.post(
+//   "/",
+//   upload.array("files", 10),
+//   auth.isAuthenticatedUser,
+//   messageController.sendMessage
+// );
+
 
 Router.post(
   "/",
-  upload.array("files", 10),
+ 
   auth.isAuthenticatedUser,
+  uploadFiles,
   messageController.sendMessage
 );
 Router.get('/:chatId',  auth.isAuthenticatedUser, messageController.getMessages);

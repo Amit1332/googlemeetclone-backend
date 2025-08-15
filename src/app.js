@@ -52,6 +52,13 @@ app.use((req, res, next) => {
   next(new ApiError(HTTP_STATUS_CODES.NOT_FOUND, "Not found"));
 });
 
+app.use((err, req, res, next) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: 'File size cannot exceed 10 MB' });
+  }
+  next(err);
+});
+
 app.use(errorConverter);
 
 // handle error

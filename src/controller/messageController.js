@@ -3,6 +3,9 @@ const catchAsyncError = require("../utils/catchAsync");
 const {HTTP_STATUS_CODES} = require("@simple-node/http-status-codes");
 
 exports.sendMessage  = catchAsyncError(async (req, res) => {
+  if (req.files && req.files.some(file => file.size > 10 * 1024 * 1024)) {
+    return res.status(400).json({ message: "File size cannot exceed 10 MB" });
+  }
        const fileUrls = req.files && req.files.map(file => ({path:file.path, originalName: file.originalname, filename:file.filename, mimetype:file.mimetype}));
        const newMessage = await messageService.sendMessage(req.user._id, req.body, fileUrls);
         res.status(HTTP_STATUS_CODES.OK).send({data:newMessage})
