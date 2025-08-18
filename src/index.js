@@ -20,11 +20,22 @@ const startServer = async () => {
         methods: ["GET", "POST"]
       }
     });
+    const activeUsers = new Map();
 
     io.on("connection", (socket) => {
       socket.on("joinRoom", (roomId) => {
         socket.join(roomId);
       });
+      socket.on("userConnected", (userId) => {
+    activeUsers.set(userId, socket.id);
+    io.emit("updateUserStatus", { userId, status: "Available" });
+    console.log("Active users:", activeUsers.size);
+  });
+  socket.on("userDisconnected", (userId) => {
+  activeUsers.delete(userId);
+  io.emit("updateUserStatus", { userId, status: "Offline" });
+});
+console.log(activeUsers)
 
       socket.on("sendMessage", (messageData) => {
         if (Array.isArray(messageData)) {
@@ -40,7 +51,13 @@ const startServer = async () => {
   });
 
       socket.on("disconnect", () => {
-        // disconnected
+       for (let [userId, socketId] of activeUsers.entries()) {
+    if (socketId === socket.id) {
+      activeUsers.delete(userId);
+      io.emit("updateUserStatus", { userId, status: "Offline" });
+      break;
+    }
+  }
       });
     });
   } catch (err) {

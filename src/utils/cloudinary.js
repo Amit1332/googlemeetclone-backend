@@ -16,7 +16,7 @@ const storage = new CloudinaryStorage({
 
       const imageFormats = ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"];
       const videoFormats = ["mp4", "mov", "avi", "mkv"];
-      const rawFormats = ["pdf", "doc", "docx", "xls", "xlsx", "csv", "xlsm", "ods"];
+      const rawFormats = ["pdf", "doc", "docx", "xls", "xlsx", "csv", "xlsm", "ods", "zip", "rar", "txt"];
       const audioFormats = ["mp3", "wav", "ogg", "m4a"];
 
       let resource_type = "image"; // default
