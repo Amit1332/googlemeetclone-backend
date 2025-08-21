@@ -50,6 +50,38 @@ console.log(activeUsers)
     io.to(chatId).emit("messageDeleted", { messageId });
   });
 
+   socket.on("call-user", ({ to, offer, from }) => {
+        const targetSocket = activeUsers.get(to);
+        if (targetSocket) {
+          io.to(targetSocket).emit("call-made", { offer, from });
+        }
+      });
+
+      socket.on("make-answer", ({ to, answer, from }) => {
+        const targetSocket = activeUsers.get(to);
+        if (targetSocket) {
+          io.to(targetSocket).emit("answer-made", { answer, from });
+        }
+      });
+
+      socket.on("ice-candidate", ({ to, candidate, from }) => {
+        const targetSocket = activeUsers.get(to);
+        if (targetSocket) {
+          io.to(targetSocket).emit("ice-candidate", { candidate, from });
+        }
+      });
+
+      // ✅ Disconnect cleanup
+      socket.on("disconnect", () => {
+        for (let [userId, socketId] of activeUsers.entries()) {
+          if (socketId === socket.id) {
+            activeUsers.delete(userId);
+            io.emit("updateUserStatus", { userId, status: "Offline" });
+            break;
+          }
+        }
+      });
+
       socket.on("disconnect", () => {
        for (let [userId, socketId] of activeUsers.entries()) {
     if (socketId === socket.id) {
