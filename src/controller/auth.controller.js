@@ -43,10 +43,11 @@ exports.googleLogin = async (req, res, next) => {
                 user = await userService.createUser({
                     email,
                     name,
-                    password: generateStrongPassword(16), // random password
+                    password: generateStrongPassword(16), 
                 });
             }
-
+            user.status = "Available";
+            await user.save();
             const tokens = await tokenService.generateAuthTokens(user);
             return res.status(HTTP_STATUS_CODES.OK).send({ data: user, tokens });
         }

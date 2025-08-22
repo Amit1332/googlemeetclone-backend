@@ -21,21 +21,23 @@ const startServer = async () => {
       }
     });
     const activeUsers = new Map();
-
     io.on("connection", (socket) => {
       socket.on("joinRoom", (roomId) => {
         socket.join(roomId);
       });
-      socket.on("userConnected", (userId) => {
-    activeUsers.set(userId, socket.id);
-    io.emit("updateUserStatus", { userId, status: "Available" });
-    console.log("Active users:", activeUsers.size);
-  });
-  socket.on("userDisconnected", (userId) => {
-  activeUsers.delete(userId);
-  io.emit("updateUserStatus", { userId, status: "Offline" });
-});
-console.log(activeUsers)
+       socket.on("userConnected", (userId) => {
+        activeUsers.set(userId, socket.id);
+         io.emit("updateUserStatus", { userId, status: "Available" });
+      });
+      socket.on("getActiveUsers", () => {
+        io.emit("activeUsersList", Array.from(activeUsers.keys())); // send only to this socket
+      });
+
+      socket.on("userDisconnected", (userId) => {
+        activeUsers.delete(userId);
+        // io.emit("updateUserStatus", { userId, status: "Offline" });
+        io.emit("activeUsersList", Array.from(activeUsers.keys()));
+      });
 
       socket.on("sendMessage", (messageData) => {
         if (Array.isArray(messageData)) {
@@ -46,50 +48,22 @@ console.log(activeUsers)
           io.to(messageData.chat._id).emit("receiveMessage", messageData);
         }
       });
-        socket.on("deleteMessage", ({ messageId, chatId }) => {
-    io.to(chatId).emit("messageDeleted", { messageId });
-  });
-
-   socket.on("call-user", ({ to, offer, from }) => {
-        const targetSocket = activeUsers.get(to);
-        if (targetSocket) {
-          io.to(targetSocket).emit("call-made", { offer, from });
-        }
+      socket.on("deleteMessage", ({ messageId, chatId }) => {
+        io.to(chatId).emit("messageDeleted", { messageId });
       });
 
-      socket.on("make-answer", ({ to, answer, from }) => {
-        const targetSocket = activeUsers.get(to);
-        if (targetSocket) {
-          io.to(targetSocket).emit("answer-made", { answer, from });
-        }
-      });
 
-      socket.on("ice-candidate", ({ to, candidate, from }) => {
-        const targetSocket = activeUsers.get(to);
-        if (targetSocket) {
-          io.to(targetSocket).emit("ice-candidate", { candidate, from });
-        }
-      });
 
-      // ✅ Disconnect cleanup
+
       socket.on("disconnect", () => {
         for (let [userId, socketId] of activeUsers.entries()) {
           if (socketId === socket.id) {
             activeUsers.delete(userId);
             io.emit("updateUserStatus", { userId, status: "Offline" });
+             io.emit("activeUsersList", Array.from(activeUsers.keys()));
             break;
           }
         }
-      });
-
-      socket.on("disconnect", () => {
-       for (let [userId, socketId] of activeUsers.entries()) {
-    if (socketId === socket.id) {
-      activeUsers.delete(userId);
-      io.emit("updateUserStatus", { userId, status: "Offline" });
-      break;
-    }
-  }
       });
     });
   } catch (err) {

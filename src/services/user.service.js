@@ -10,7 +10,8 @@ const createUser = async (userBody) => {
   if (await User.findOne({ email: userBody.email })) {
     throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, ERROR_MESSAGES.EMAIL_ALREADY_TAKEN);
   }
-  const info = User.create(userBody);
+  let data = {...userBody, status: "Available"}
+  const info = User.create(data);
   // await email.sendWelcomeEmail(userBody.email);
   return info;
 };

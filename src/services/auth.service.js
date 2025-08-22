@@ -5,7 +5,8 @@ const { ERROR_MESSAGES } = require("../helper/messages");
 
 const loginUserWithEmailAndPassword = async (email, password) => {
   let userInfo = await User.findOne({ email }).select("+password"); // include password only for comparison
-
+   userInfo.status = "Available";
+    await userInfo.save();
   if (await bcrypt.compare(password, userInfo.password)) {
     userInfo = userInfo.toObject();
     delete userInfo.password;
