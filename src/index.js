@@ -56,14 +56,20 @@ const startServer = async () => {
 
        // ------------- 👇 NEW: Audio/Video Call Signaling -------------
       // Start call
-    socket.on("call:init", ({ fromUserId, toUserId, mediaType, callerName }) => {
+   socket.on("call:init", ({ fromUserId, toUserId, mediaType, callerName }) => {
   const targetSocket = activeUsers.get(toUserId);
   if (targetSocket) {
     io.to(targetSocket).emit("call:incoming", {
       fromUserId,
-      callerName,   // send caller name
+      callerName,
       mediaType,
     });
+  } else {
+    // 👇 Notify caller that user is not available
+    const callerSocket = activeUsers.get(fromUserId);
+    if (callerSocket) {
+      io.to(callerSocket).emit("call:unavailable", { toUserId });
+    }
   }
 });
 
@@ -106,12 +112,13 @@ const startServer = async () => {
         }
       });
 
-      socket.on("webrtc:ice-candidate", ({ fromUserId, toUserId, candidate }) => {
-        const targetSocket = activeUsers.get(toUserId);
-        if (targetSocket) {
-          io.to(targetSocket).emit("webrtc:ice-candidate", { fromUserId, candidate });
-        }
-      });
+     socket.on("webrtc:ice-candidate", ({ fromUserId, toUserId, candidate }) => {
+  if (!candidate) return; // ignore null
+  const targetSocket = activeUsers.get(toUserId);
+  if (targetSocket) {
+    io.to(targetSocket).emit("webrtc:ice-candidate", { fromUserId, candidate });
+  }
+});
       // ---------------------------------------------------------------
 
 
@@ -123,7 +130,8 @@ const startServer = async () => {
             activeUsers.delete(userId);
             io.emit("updateUserStatus", { userId, status: "Offline" });
             io.emit("activeUsersList", Array.from(activeUsers.keys()));
-            break;
+             io.emit("call:ended", { fromUserId: userId });
+      break;
           }
         }
       });
