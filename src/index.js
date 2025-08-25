@@ -25,9 +25,9 @@ const startServer = async () => {
       socket.on("joinRoom", (roomId) => {
         socket.join(roomId);
       });
-       socket.on("userConnected", (userId) => {
+      socket.on("userConnected", (userId) => {
         activeUsers.set(userId, socket.id);
-         io.emit("updateUserStatus", { userId, status: "Available" });
+        io.emit("updateUserStatus", { userId, status: "Available" });
       });
       socket.on("getActiveUsers", () => {
         io.emit("activeUsersList", Array.from(activeUsers.keys())); // send only to this socket
@@ -54,13 +54,71 @@ const startServer = async () => {
 
 
 
+       // ------------- 👇 NEW: Audio/Video Call Signaling -------------
+      // Start call
+      socket.on("call:init", ({ fromUserId, toUserId, mediaType }) => {
+        const targetSocket = activeUsers.get(toUserId);
+        if (targetSocket) {
+          io.to(targetSocket).emit("call:incoming", { fromUserId, mediaType });
+        }
+      });
+
+      // Accept call
+      socket.on("call:accept", ({ fromUserId, toUserId }) => {
+        const targetSocket = activeUsers.get(toUserId);
+        if (targetSocket) {
+          io.to(targetSocket).emit("call:accepted", { fromUserId });
+        }
+      });
+
+      // Reject call
+      socket.on("call:reject", ({ fromUserId, toUserId }) => {
+        const targetSocket = activeUsers.get(toUserId);
+        if (targetSocket) {
+          io.to(targetSocket).emit("call:rejected", { fromUserId });
+        }
+      });
+
+      // End call
+      socket.on("call:end", ({ fromUserId, toUserId }) => {
+        const targetSocket = activeUsers.get(toUserId);
+        if (targetSocket) {
+          io.to(targetSocket).emit("call:ended", { fromUserId });
+        }
+      });
+
+      // WebRTC signaling
+      socket.on("webrtc:offer", ({ fromUserId, toUserId, sdp }) => {
+        const targetSocket = activeUsers.get(toUserId);
+        if (targetSocket) {
+          io.to(targetSocket).emit("webrtc:offer", { fromUserId, sdp });
+        }
+      });
+
+      socket.on("webrtc:answer", ({ fromUserId, toUserId, sdp }) => {
+        const targetSocket = activeUsers.get(toUserId);
+        if (targetSocket) {
+          io.to(targetSocket).emit("webrtc:answer", { fromUserId, sdp });
+        }
+      });
+
+      socket.on("webrtc:ice-candidate", ({ fromUserId, toUserId, candidate }) => {
+        const targetSocket = activeUsers.get(toUserId);
+        if (targetSocket) {
+          io.to(targetSocket).emit("webrtc:ice-candidate", { fromUserId, candidate });
+        }
+      });
+      // ---------------------------------------------------------------
+
+
+
 
       socket.on("disconnect", () => {
         for (let [userId, socketId] of activeUsers.entries()) {
           if (socketId === socket.id) {
             activeUsers.delete(userId);
             io.emit("updateUserStatus", { userId, status: "Offline" });
-             io.emit("activeUsersList", Array.from(activeUsers.keys()));
+            io.emit("activeUsersList", Array.from(activeUsers.keys()));
             break;
           }
         }
