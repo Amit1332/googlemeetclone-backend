@@ -56,12 +56,16 @@ const startServer = async () => {
 
        // ------------- 👇 NEW: Audio/Video Call Signaling -------------
       // Start call
-      socket.on("call:init", ({ fromUserId, toUserId, mediaType }) => {
-        const targetSocket = activeUsers.get(toUserId);
-        if (targetSocket) {
-          io.to(targetSocket).emit("call:incoming", { fromUserId, mediaType });
-        }
-      });
+    socket.on("call:init", ({ fromUserId, toUserId, mediaType, callerName }) => {
+  const targetSocket = activeUsers.get(toUserId);
+  if (targetSocket) {
+    io.to(targetSocket).emit("call:incoming", {
+      fromUserId,
+      callerName,   // send caller name
+      mediaType,
+    });
+  }
+});
 
       // Accept call
       socket.on("call:accept", ({ fromUserId, toUserId }) => {
