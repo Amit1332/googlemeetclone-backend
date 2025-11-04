@@ -39,11 +39,15 @@ exports.googleLogin = async (req, res, next) => {
         if (googleUser.data) {
             // 2. Find or create local user
             let user = await userService.userDetailsByEmail(email);
+            if (user.isDeleted) {
+                return res.status(403).json({
+                    message: 'Your account has been deleted. Please contact support if this is an error.',
+                });
+            }
             if (!user) {
                 user = await userService.createUser({
                     email,
                     name,
-                    password: generateStrongPassword(16), 
                 });
             }
             user.status = "Available";
