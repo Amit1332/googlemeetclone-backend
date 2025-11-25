@@ -5,7 +5,10 @@ const Schema = new mongoose.Schema({
     isGroupChat: { type: Boolean, default: false },
     users: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
     latestMessage: { type: mongoose.Schema.Types.ObjectId, ref: "message" },
-    groupAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "user" }
+    groupAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
+    groupPicture: {
+        type: String,
+    }
 }, { timestamps: true });
 
 const chatModel = new mongoose.model('chat', Schema);

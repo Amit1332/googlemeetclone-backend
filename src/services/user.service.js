@@ -165,30 +165,47 @@ const userDetails = async (id) => {
 
 const getChattedUsers = async (authUserId) => {
   const chats = await chatModel.find({
-    users: authUserId,
-    isGroupChat: false
-  }).populate({
+    users: authUserId
+  })
+  .populate({
     path: "users",
-    match: { isActive: true, isDeleted: { $ne: true } }, // 👈 Only active users
+    match: { isActive: true, isDeleted: { $ne: true } },
     select: "-password"
-  });
+  })
+  .populate("groupAdmin", "-password")
+  .populate("latestMessage");
 
-  const otherUsers = [];
+  const result = [];
+  const seen = new Set();
+
   chats.forEach(chat => {
-    chat.users.forEach(u => {
-      if (u && u._id.toString() !== authUserId.toString()) {
-        otherUsers.push(u);
+
+    if (chat.isGroupChat) {
+      // Group chat → push group object
+      if (!seen.has(String(chat._id))) {
+        result.push({
+          type: "group",
+          ...chat.toObject()
+        });
+        seen.add(String(chat._id));
       }
-    });
+    } else {
+      // 1-to-1 chat → push other user
+      chat.users.forEach(u => {
+        if (u && String(u._id) !== String(authUserId)) {
+          if (!seen.has(String(u._id))) {
+            result.push({
+              type: "user",
+              ...u.toObject()
+            });
+            seen.add(String(u._id));
+          }
+        }
+      });
+    }
   });
 
-  // Remove duplicates
-  const uniqueUsersMap = new Map();
-  otherUsers.forEach(u => {
-    uniqueUsersMap.set(u._id.toString(), u);
-  });
-
-  return Array.from(uniqueUsersMap.values());
+  return result;
 };
 
 

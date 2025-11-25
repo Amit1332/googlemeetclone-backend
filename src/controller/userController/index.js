@@ -13,8 +13,6 @@ exports.uploadProfilePicture = catchAsyncError(async (req, res) => {
   if (req.files && req.files.some(file => file.size > 10 * 1024 * 1024)) {
     return res.status(400).json({ message: "File size cannot exceed 10 MB" });
   }
-  console.log("Files received:", req.files);
-
   if (!req.files || req.files.length === 0) {
     return res.status(404).json({ message: "No files uploaded" });
   }

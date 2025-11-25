@@ -27,7 +27,7 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
   });
 
   newMessage = await newMessage.populate([
-    { path: "sender", select: "name" },
+    { path: "sender" },
     { path: "chat" }, { path: "replyTo", select: "content sender" }
   ]);
   await chatModel.findByIdAndUpdate(chatId, { latestMessage: newMessage });
@@ -43,8 +43,11 @@ const getMessages = async (authId, chatId) => {
   }
 
   return await messageModel.find({ chat: chatId })
-    .populate("sender", "name")
-    .populate("chat").populate("replyTo")
+    .populate("sender", "-password")
+    .populate("chat").populate({ path: "replyTo", select: "content sender", populate: {
+        path: "sender",
+        select: "-password"
+      } })
 };
 
 
