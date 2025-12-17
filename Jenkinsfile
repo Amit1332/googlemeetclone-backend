@@ -11,16 +11,20 @@ pipeline {
                 checkout scm
             }
         }
-
-        stage('Install Dependencies') {
+       
+         stage('Build Docker Image') {
             steps {
-                bat 'npm ci'
+                bat 'docker build -t googlemeetclone-server .'
             }
-        }       
+        }
 
-        stage('Start Application') {
+        stage('Run Container') {
             steps {
-                bat 'npm start'
+                bat '''
+                docker stop googlemeet-backend || exit 0
+                docker rm googlemeet-backend || exit 0
+                docker run -d -p 3001:3001 --name googlemeet-backend googlemeetclone-server
+                '''
             }
         }
     }
