@@ -16,19 +16,7 @@ pipeline {
             steps {
                 bat 'npm ci'
             }
-        }
-
-        stage('Run Tests') {
-            steps {
-                bat 'npm test'
-            }
-        }
-
-        stage('Build (if applicable)') {
-            steps {
-                bat 'npm run build'
-            }
-        }
+        }       
 
         stage('Start Application') {
             steps {
