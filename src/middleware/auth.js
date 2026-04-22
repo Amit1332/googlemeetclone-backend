@@ -14,8 +14,7 @@ exports.isAuthenticatedUser = catchAsync(async (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
       const decodedData = jwt.verify(token, config.jwt.secret);
-      console.log(decodedData)
-    req.user = await User.findById(decodedData.sub);
+     req.user = await User.findById(decodedData.sub);
 
     if (!req.user) {
         return next(new ApiError(HTTP_STATUS_CODES.NOT_FOUND, "Not found"));

@@ -15,10 +15,20 @@ const userSchema = new mongoose.Schema(
       unique: true,
       validate: [isEmail, "Invalid email"]
     },
+    role: {
+  type: String,
+  enum: ["superadmin", "user"],
+  default: "user"
+},
     password: {
       type: String,
       validate: [isStrongPassword, "Please enter a strong password"],
       select: false
+    },
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "organization",
+      default: null // important
     },
     status: {
       type: String,
