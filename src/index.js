@@ -3,12 +3,13 @@ const config = require("./config/config");
 const dbConnection = require("./config/database");
 const { SUCCESS_MESSAGES } = require("./helper/messages");
 const { Server } = require("socket.io");
+const User = require("./model/user.schema");
 
 let server;
 
 const startServer = async () => {
   try {
-    await dbConnection(); // ⬅️ WAIT until DB connects first
+    await dbConnection();
 
     server = app.listen(config.port, () => {
       console.log(`${SUCCESS_MESSAGES.SERVER_STARTED} ${config.port}`);
@@ -16,27 +17,77 @@ const startServer = async () => {
 
     const io = new Server(server, {
       cors: {
-        origin: "*", // your frontend origin in production
-        methods: ["GET", "POST"]
-      }
+        origin: "*",
+        methods: ["GET", "POST"],
+      },
     });
+
     const activeUsers = new Map();
+
+    const getActiveUserIds = () => Array.from(activeUsers.keys());
+
+    const addActiveSocket = (userId, socketId) => {
+      const socketIds = activeUsers.get(userId) || new Set();
+      socketIds.add(socketId);
+      activeUsers.set(userId, socketIds);
+    };
+
+    const removeActiveSocket = (userId, socketId) => {
+      if (!userId || !activeUsers.has(userId)) return false;
+
+      const socketIds = activeUsers.get(userId);
+      socketIds.delete(socketId);
+
+      if (socketIds.size === 0) {
+        activeUsers.delete(userId);
+        return true;
+      }
+
+      activeUsers.set(userId, socketIds);
+      return false;
+    };
+
+    const getTargetSockets = (userId) => {
+      const socketIds = activeUsers.get(userId);
+      return socketIds?.size ? Array.from(socketIds) : [];
+    };
+
     io.on("connection", (socket) => {
       socket.on("joinRoom", (roomId) => {
         socket.join(roomId);
       });
-      socket.on("userConnected", (userId) => {
-        activeUsers.set(userId, socket.id);
-        io.emit("updateUserStatus", { userId, status: "Available" });
+
+      socket.on("userConnected", async (userId) => {
+        if (!userId) return;
+
+        socket.data.userId = userId;
+        addActiveSocket(userId, socket.id);
+
+        try {
+          const user = await User.findById(userId).select("status");
+          if (user) {
+            io.emit("updateUserStatus", { userId, status: user.status });
+          }
+        } catch (error) {
+          console.error("Failed to sync user status on connect:", error.message);
+        }
+
+        io.emit("activeUsersList", getActiveUserIds());
       });
+
       socket.on("getActiveUsers", () => {
-        io.emit("activeUsersList", Array.from(activeUsers.keys())); // send only to this socket
+        socket.emit("activeUsersList", getActiveUserIds());
+      });
+
+      socket.on("userStatusChanged", ({ userId, status }) => {
+        if (!userId) return;
+        io.emit("updateUserStatus", { userId, status });
       });
 
       socket.on("userDisconnected", (userId) => {
-        activeUsers.delete(userId);
-        // io.emit("updateUserStatus", { userId, status: "Offline" });
-        io.emit("activeUsersList", Array.from(activeUsers.keys()));
+        const disconnectedUserId = userId || socket.data.userId;
+        removeActiveSocket(disconnectedUserId, socket.id);
+        io.emit("activeUsersList", getActiveUserIds());
       });
 
       socket.on("sendMessage", (messageData) => {
@@ -48,92 +99,81 @@ const startServer = async () => {
           io.to(messageData.chat._id).emit("receiveMessage", messageData);
         }
       });
+
       socket.on("deleteMessage", ({ messageId, chatId }) => {
         io.to(chatId).emit("messageDeleted", { messageId });
       });
 
+      socket.on("call:init", ({ fromUserId, toUserId, mediaType, callerName }) => {
+        const targetSockets = getTargetSockets(toUserId);
+        if (targetSockets.length) {
+          io.to(targetSockets).emit("call:incoming", {
+            fromUserId,
+            callerName,
+            mediaType,
+          });
+          return;
+        }
 
+        const callerSockets = getTargetSockets(fromUserId);
+        if (callerSockets.length) {
+          io.to(callerSockets).emit("call:unavailable", { toUserId });
+        }
+      });
 
-       // ------------- 👇 NEW: Audio/Video Call Signaling -------------
-      // Start call
-   socket.on("call:init", ({ fromUserId, toUserId, mediaType, callerName }) => {
-  const targetSocket = activeUsers.get(toUserId);
-  if (targetSocket) {
-    io.to(targetSocket).emit("call:incoming", {
-      fromUserId,
-      callerName,
-      mediaType,
-    });
-  } else {
-    // 👇 Notify caller that user is not available
-    const callerSocket = activeUsers.get(fromUserId);
-    if (callerSocket) {
-      io.to(callerSocket).emit("call:unavailable", { toUserId });
-    }
-  }
-});
-
-      // Accept call
       socket.on("call:accept", ({ fromUserId, toUserId }) => {
-        const targetSocket = activeUsers.get(toUserId);
-        if (targetSocket) {
-          io.to(targetSocket).emit("call:accepted", { fromUserId });
+        const targetSockets = getTargetSockets(toUserId);
+        if (targetSockets.length) {
+          io.to(targetSockets).emit("call:accepted", { fromUserId });
         }
       });
 
-      // Reject call
       socket.on("call:reject", ({ fromUserId, toUserId }) => {
-        const targetSocket = activeUsers.get(toUserId);
-        if (targetSocket) {
-          io.to(targetSocket).emit("call:rejected", { fromUserId });
+        const targetSockets = getTargetSockets(toUserId);
+        if (targetSockets.length) {
+          io.to(targetSockets).emit("call:rejected", { fromUserId });
         }
       });
 
-      // End call
       socket.on("call:end", ({ fromUserId, toUserId }) => {
-        const targetSocket = activeUsers.get(toUserId);
-        if (targetSocket) {
-          io.to(targetSocket).emit("call:ended", { fromUserId });
+        const targetSockets = getTargetSockets(toUserId);
+        if (targetSockets.length) {
+          io.to(targetSockets).emit("call:ended", { fromUserId });
         }
       });
 
-      // WebRTC signaling
       socket.on("webrtc:offer", ({ fromUserId, toUserId, sdp }) => {
-        const targetSocket = activeUsers.get(toUserId);
-        if (targetSocket) {
-          io.to(targetSocket).emit("webrtc:offer", { fromUserId, sdp });
+        const targetSockets = getTargetSockets(toUserId);
+        if (targetSockets.length) {
+          io.to(targetSockets).emit("webrtc:offer", { fromUserId, sdp });
         }
       });
 
       socket.on("webrtc:answer", ({ fromUserId, toUserId, sdp }) => {
-        const targetSocket = activeUsers.get(toUserId);
-        if (targetSocket) {
-          io.to(targetSocket).emit("webrtc:answer", { fromUserId, sdp });
+        const targetSockets = getTargetSockets(toUserId);
+        if (targetSockets.length) {
+          io.to(targetSockets).emit("webrtc:answer", { fromUserId, sdp });
         }
       });
 
-     socket.on("webrtc:ice-candidate", ({ fromUserId, toUserId, candidate }) => {
-  if (!candidate) return; // ignore null
-  const targetSocket = activeUsers.get(toUserId);
-  if (targetSocket) {
-    io.to(targetSocket).emit("webrtc:ice-candidate", { fromUserId, candidate });
-  }
-});
-      // ---------------------------------------------------------------
+      socket.on("webrtc:ice-candidate", ({ fromUserId, toUserId, candidate }) => {
+        if (!candidate) return;
 
-
-
+        const targetSockets = getTargetSockets(toUserId);
+        if (targetSockets.length) {
+          io.to(targetSockets).emit("webrtc:ice-candidate", {
+            fromUserId,
+            candidate,
+          });
+        }
+      });
 
       socket.on("disconnect", () => {
-        for (let [userId, socketId] of activeUsers.entries()) {
-          if (socketId === socket.id) {
-            activeUsers.delete(userId);
-            io.emit("updateUserStatus", { userId, status: "Offline" });
-            io.emit("activeUsersList", Array.from(activeUsers.keys()));
-             io.emit("call:ended", { fromUserId: userId });
-      break;
-          }
+        const userId = socket.data.userId;
+        if (removeActiveSocket(userId, socket.id)) {
+          io.emit("call:ended", { fromUserId: userId });
         }
+        io.emit("activeUsersList", getActiveUserIds());
       });
     });
   } catch (err) {
@@ -144,7 +184,6 @@ const startServer = async () => {
 
 startServer();
 
-// graceful shutdown
 const exitHandler = () => {
   if (server) {
     server.close(() => {
