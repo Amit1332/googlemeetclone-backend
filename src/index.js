@@ -84,6 +84,11 @@ const startServer = async () => {
         io.emit("updateUserStatus", { userId, status });
       });
 
+      socket.on("userProfileUpdated", ({ userId, profile }) => {
+        if (!userId || !profile) return;
+        io.emit("userProfileUpdated", { userId, profile });
+      });
+
       socket.on("userDisconnected", (userId) => {
         const disconnectedUserId = userId || socket.data.userId;
         removeActiveSocket(disconnectedUserId, socket.id);

@@ -37,6 +37,18 @@ const userSchema = new mongoose.Schema(
     profilePicture: {
       type: String,
     },
+    workLocation: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [100, "Work location cannot exceed 100 characters"],
+    },
+    statusMessage: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [160, "Status message cannot exceed 160 characters"],
+    },
      birthday: {
       type: Date,
       required: false, // optional
