@@ -3,6 +3,7 @@ const ApiError = require("../utils/ApiError");
 const { ERROR_MESSAGES, SUCCESS_MESSAGES } = require("../helper/messages");
 const chatModel = require("../model/chat.schema");
 const messageModel = require("../model/message.schema");
+const userModel = require("../model/user.schema")
 
 
 const accessChat = async (authId, payload) => {
@@ -99,7 +100,6 @@ const deleteChat = async (authUserId, otherUserId) => {
 
 
 const createGroupChat = async (authUserId, groupName, users) => {
-  console.log(users)
   if (!groupName || !users || users.length === 0) {
     throw new ApiError(
       HTTP_STATUS_CODES.BAD_REQUEST,
@@ -109,7 +109,6 @@ const createGroupChat = async (authUserId, groupName, users) => {
 
   // Ensure auth user is included
   const allUsers = [...new Set([...users, authUserId])];
-  console.log(allUsers);
 
   if (allUsers.length < 3) {
     throw new ApiError(
@@ -117,12 +116,27 @@ const createGroupChat = async (authUserId, groupName, users) => {
       "A group must include at least 2 members + admin"
     );
   }
+    const userDocs = await userModel.find({ _id: { $in: allUsers } });
 
-  const groupChat = await chatModel.create({
+  // 🔥 Get org of creator
+  const creator = userDocs.find(u => u._id.toString() === authUserId.toString());
+  const orgId = creator.organization;
+
+  // 🔥 Check all users belong to same org
+  const isSameOrg = userDocs.every(
+    u => String(u.organization) === String(orgId)
+  );
+
+    if (!isSameOrg) {
+    throw new ApiError(403, "All users must belong to same organization");
+  }
+
+ const groupChat = await chatModel.create({
     chatName: groupName,
     isGroupChat: true,
     users: allUsers,
     groupAdmin: authUserId,
+    organization: orgId // ✅ important
   });
 
   return await chatModel
@@ -132,7 +146,7 @@ const createGroupChat = async (authUserId, groupName, users) => {
 };
 
 
-const updateGroupChat = async (authUserId, chatId, newName, groupPicture) => {
+const updateGroupChat = async (authUser, chatId, newName, groupPicture) => {
   const chat = await chatModel.findById(chatId);
 
   if (!chat || !chat.isGroupChat) {
@@ -141,8 +155,11 @@ const updateGroupChat = async (authUserId, chatId, newName, groupPicture) => {
       ERROR_MESSAGES.CHAT_NOT_FOUND || "Group not found"
     );
   }
+  if (String(chat.organization) !== String(authUser.organization)) {
+  throw new Error("Access denied (different organization)");
+}
 
-  if (String(chat.groupAdmin) !== String(authUserId)) {
+  if (String(chat.groupAdmin) !== String(authUser._id)) {
     throw new ApiError(
       HTTP_STATUS_CODES.FORBIDDEN,
       "Only the group admin can rename the group"
@@ -160,24 +177,28 @@ const updateGroupChat = async (authUserId, chatId, newName, groupPicture) => {
 
 
 
-const  exitGroupChat = async (authId, chatId) => {
+const  exitGroupChat = async (authUser, chatId) => {
   const chat = await chatModel.findById(chatId);
 
   if (!chat) throw new Error("Group not found");
   if (!chat.isGroupChat) throw new Error("Not a group chat");
 
+   if (String(chat.organization) !== String(authUser.organization)) {
+  throw new Error("Access denied (different organization)");
+}
+
   // Check if user is already not in group
-  if (!chat.users.includes(authId)) {
+  if (!chat.users.includes(authUser._id)) {
     throw new Error("You are not a member of this group");
   }
 
   // Prevent group admin from leaving if they are the only admin
-  if (chat.groupAdmin.toString() === authId.toString()) {
+  if (chat.groupAdmin.toString() === authUser._id.toString()) {
     throw new Error("Group admin cannot leave. Transfer admin first.");
   }
 
   // Remove user from group
- chat.users = chat.users.filter(u => u.toString() !== authId.toString());
+ chat.users = chat.users.filter(u => u.toString() !== authUser._id.toString());
 
 
   await chat.save();
@@ -222,8 +243,12 @@ const  inviteUserToGroupChat = async (authId, userIds, chatId) => {
     throw new Error("Only Group admin can invite users.");
   }
 
-  // Remove user from group
- chat.users = [...chat.users, ...userIds];
+ const uniqueUsers = new Set([
+  ...chat.users.map(u => u.toString()),
+  ...userIds
+]);
+
+chat.users = Array.from(uniqueUsers);
 
 
   await chat.save();
@@ -234,14 +259,18 @@ const  inviteUserToGroupChat = async (authId, userIds, chatId) => {
 
 
 
-const  deleteGroupChat = async (authId, chatId) => {
+const  deleteGroupChat = async (authUser, chatId) => {
   const chat = await chatModel.findById(chatId);
 
   if (!chat) throw new Error("Group not found");
   if (!chat.isGroupChat) throw new Error("Not a group chat");
 
+  if (String(chat.organization) !== String(authUser.organization)) {
+  throw new Error("Access denied");
+}
+
   // Check if user is group admin
-  if (chat.groupAdmin.toString() !== authId.toString()) {
+  if (chat.groupAdmin.toString() !== authUser._id.toString()) {
     throw new Error("Only group admin can delete this group");
   }
 

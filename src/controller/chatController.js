@@ -30,7 +30,6 @@ exports.createGroupChat = catchAsyncError(async (req, res) => {
 
 exports.updateGroupChat = catchAsyncError(async (req, res) => {
   const { chatId, newName } = req.body;
-  console.log("req.files", req.files);
 
     const fileUrls = req.files.map(file => ({
     path: file.path,
@@ -41,7 +40,7 @@ exports.updateGroupChat = catchAsyncError(async (req, res) => {
 
 
   const chat = await chatService.updateGroupChat(
-    req.user._id,
+    req.user,
     chatId,
     newName,
     groupPicture =   fileUrls[0]?.path
@@ -54,7 +53,7 @@ exports.updateGroupChat = catchAsyncError(async (req, res) => {
 exports.exitGroupChat = catchAsyncError(async (req, res) => {
   const { chatId } = req.params;
 
-  const chat = await chatService.exitGroupChat(req.user._id, chatId);
+  const chat = await chatService.exitGroupChat(req.user, chatId);
 
   res.status(HTTP_STATUS_CODES.OK).send({ data: chat });
 });
@@ -62,7 +61,7 @@ exports.exitGroupChat = catchAsyncError(async (req, res) => {
 exports.removeUserFromGroupChat = catchAsyncError(async (req, res) => {
   const { userId, chatId } = req.body;
 
-  const chat = await chatService.removeUserFromGroupChat(userId, chatId);
+  const chat = await chatService.removeUserFromGroupChat(userId, chatId, req.user);
 
   res.status(HTTP_STATUS_CODES.OK).send({ data: chat });
 });
@@ -78,7 +77,7 @@ exports.inviteUserToGroupChat = catchAsyncError(async (req, res) => {
 exports.deleteGroupChat = catchAsyncError(async (req, res) => {
   const { chatId } = req.params;
 
-  const response = await chatService.deleteGroupChat(req.user._id, chatId);
+  const response = await chatService.deleteGroupChat(req.user, chatId);
 
   res.status(HTTP_STATUS_CODES.OK).send({ message: response });
 });
