@@ -5,14 +5,6 @@ const auth = require('../../middleware/auth');
 const { uploadFiles } = require('../../middleware/uploadFiles');
 const Router = express.Router()
 
-// Router.post(
-//   "/",
-//   upload.array("files", 10),
-//   auth.isAuthenticatedUser,
-//   messageController.sendMessage
-// );
-
-
 Router.post(
   "/",
  
@@ -22,10 +14,7 @@ Router.post(
 );
 Router.get('/:chatId',  auth.isAuthenticatedUser, messageController.getMessages);
 Router.get('/documents/:userId',auth.isAuthenticatedUser, messageController.getDocuments);
-
+Router.put('/:messageId/reactions', auth.isAuthenticatedUser, messageController.toggleReaction);
 Router.delete("/:messageId", auth.isAuthenticatedUser, messageController.deleteMessage);
-
-
-
 
 module.exports = Router

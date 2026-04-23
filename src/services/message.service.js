@@ -5,6 +5,22 @@ const messageModel = require("../model/message.schema");
 const chatModel = require("../model/chat.schema");
 const cloudinary = require("cloudinary").v2
 
+const messagePopulate = [
+  { path: "sender", select: "-password" },
+  {
+    path: "chat",
+    populate: [
+      { path: "users", select: "-password" },
+      { path: "groupAdmin", select: "-password" },
+    ],
+  },
+  {
+    path: "replyTo",
+    select: "content sender reactions",
+    populate: { path: "sender", select: "-password" },
+  },
+];
+
 const sendMessage = async (authId, userBody, fileUrls = []) => {
   const { message, chatId, replyTo } = userBody;
 
@@ -12,7 +28,7 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
   const filesArray = fileUrls.map((file) => ({
     url: file.path,
     fileName: file.originalName,
-    type: file.mimetype?.split("/")[0] || "file", // auto-detect "image", "video", etc.
+    type: file.mimetype?.split("/")[0] || "file",
     public_id: file.filename,
   }));
 
@@ -26,10 +42,7 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
      replyTo: replyTo || null,
   });
 
-  newMessage = await newMessage.populate([
-    { path: "sender" },
-    { path: "chat" }, { path: "replyTo", select: "content sender" }
-  ]);
+  newMessage = await newMessage.populate(messagePopulate);
   await chatModel.findByIdAndUpdate(chatId, { latestMessage: newMessage });
   return newMessage;
 };
@@ -37,31 +50,25 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
 
 const getMessages = async (authId, chatId) => {
    const chat = await chatModel.findById(chatId);
-  // Extra safety: check if user is allowed to access this chat
   if (!chat.users.includes(authId)) {
     throw new Error("Unauthorized access to this chat");
   }
 
   return await messageModel.find({ chat: chatId })
-    .populate("sender", "-password")
-    .populate("chat").populate({ path: "replyTo", select: "content sender", populate: {
-        path: "sender",
-        select: "-password"
-      } })
+    .populate(messagePopulate);
 };
 
 
 const getDocuments = async (authId, userId) => {
    chat = await chatModel.findOne({
     isGroupChat: false,
-    users: { $all: [authId, userId], $size: 2 } // exactly those 2 users
+    users: { $all: [authId, userId], $size: 2 }
   })
    if (!chat.users.includes(authId)) {
     throw new Error("Unauthorized access to this chat");
   }
 
   let data =  await messageModel.find({ chat: chat._id })
-//   data =  data.map((el) => el.content.files).filter((e) =>e.length).flat(1)
   data =  data.map((el) => el.content.files)
 
   return data
@@ -69,6 +76,62 @@ const getDocuments = async (authId, userId) => {
    
 };
 
+const toggleReaction = async (authId, messageId, emoji) => {
+  if (!emoji?.trim()) {
+    throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Emoji is required");
+  }
+
+  const message = await messageModel.findById(messageId).populate({
+    path: "chat",
+    populate: [
+      { path: "users", select: "-password" },
+      { path: "groupAdmin", select: "-password" },
+    ],
+  });
+
+  if (!message) {
+    throw new ApiError(HTTP_STATUS_CODES.NOT_FOUND, "Message not found");
+  }
+
+  const isParticipant = message.chat?.users?.some(
+    (user) => String(user?._id || user) === String(authId)
+  );
+
+  if (!isParticipant) {
+    throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Not authorized to react to this message");
+  }
+
+  const normalizedEmoji = emoji.trim();
+  const existingReactionIndex = message.reactions.findIndex(
+    (reaction) => reaction.emoji === normalizedEmoji
+  );
+
+  if (existingReactionIndex === -1) {
+    message.reactions.push({
+      emoji: normalizedEmoji,
+      users: [authId],
+    });
+  } else {
+    const reactionUsers = message.reactions[existingReactionIndex].users.map(String);
+    const hasReacted = reactionUsers.includes(String(authId));
+
+    if (hasReacted) {
+      message.reactions[existingReactionIndex].users = message.reactions[existingReactionIndex].users.filter(
+        (userId) => String(userId) !== String(authId)
+      );
+
+      if (message.reactions[existingReactionIndex].users.length === 0) {
+        message.reactions.splice(existingReactionIndex, 1);
+      }
+    } else {
+      message.reactions[existingReactionIndex].users.push(authId);
+    }
+  }
+
+  await message.save();
+
+  return await messageModel.findById(messageId).populate(messagePopulate);
+};
 
 
 const deleteMessage = async (authId, messageId) => {
@@ -81,7 +144,6 @@ const deleteMessage = async (authId, messageId) => {
     throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Not authorized to delete this message");
   }
 
-  // Delete files from Cloudinary
   const files = message.content?.files || [];
   for (const file of files) {
     if (file.public_id) {
@@ -93,10 +155,8 @@ const deleteMessage = async (authId, messageId) => {
     }
   }
 
-  // Delete the message
   await messageModel.findByIdAndDelete(messageId);
 
-  // Update chat latestMessage
   const chat = await chatModel.findById(message.chat);
   if (chat.latestMessage?.toString() === messageId) {
     const latestMsg = await messageModel
@@ -114,5 +174,6 @@ module.exports = {
  sendMessage ,
  getMessages,
  deleteMessage,
- getDocuments
+ getDocuments,
+ toggleReaction,
 };

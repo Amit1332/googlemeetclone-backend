@@ -30,6 +30,16 @@ exports.deleteMessage = catchAsyncError(async (req, res) => {
   });
 });
 
+exports.toggleReaction = catchAsyncError(async (req, res) => {
+  const { messageId } = req.params;
+  const result = await messageService.toggleReaction(req.user._id, messageId, req.body?.emoji);
+
+  res.status(HTTP_STATUS_CODES.OK).json({
+    success: true,
+    data: result,
+  });
+});
+
 
 exports.getDocuments = catchAsyncError(async (req, res) => {
   const { userId } = req.params;

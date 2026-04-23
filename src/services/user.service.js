@@ -175,16 +175,28 @@ const getChattedUsers = async (authUserId) => {
   .populate("groupAdmin", "-password")
   .populate("latestMessage");
 
+  const getLastActivityAt = (chat) =>
+    chat?.latestMessage?.createdAt || chat?.updatedAt || chat?.createdAt || null;
+
   const result = [];
   const seen = new Set();
 
-  chats.forEach(chat => {
+  chats
+  .sort((firstChat, secondChat) => {
+    const firstActivity = new Date(getLastActivityAt(firstChat) || 0).getTime();
+    const secondActivity = new Date(getLastActivityAt(secondChat) || 0).getTime();
+    return secondActivity - firstActivity;
+  })
+  .forEach(chat => {
+    const lastActivityAt = getLastActivityAt(chat);
 
     if (chat.isGroupChat) {
       // Group chat → push group object
       if (!seen.has(String(chat._id))) {
         result.push({
           type: "group",
+          lastActivityAt,
+          latestMessage: chat.latestMessage || null,
           ...chat.toObject()
         });
         seen.add(String(chat._id));
@@ -196,6 +208,8 @@ const getChattedUsers = async (authUserId) => {
           if (!seen.has(String(u._id))) {
             result.push({
               type: "user",
+              lastActivityAt,
+              latestMessage: chat.latestMessage || null,
               ...u.toObject()
             });
             seen.add(String(u._id));

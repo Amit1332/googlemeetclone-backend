@@ -2,6 +2,18 @@ const mongoose = require("mongoose");
 const { isEmail, isStrongPassword } = require("validator");
 const bcrypt = require("bcryptjs");
 
+const reactionSchema = new mongoose.Schema(
+  {
+    emoji: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    users: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
+  },
+  { _id: false }
+);
+
 const Schema = new mongoose.Schema(
   {
     sender: {
@@ -26,11 +38,11 @@ const Schema = new mongoose.Schema(
       default: null,
     },
     chat: { type: mongoose.Schema.Types.ObjectId, ref: "chat", required: true },
-    seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }], // for read receipts
+    seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
+    reactions: [reactionSchema],
   },
   { timestamps: true }
 );
-
 
 const messageModel = new mongoose.model("message", Schema);
 module.exports = messageModel;

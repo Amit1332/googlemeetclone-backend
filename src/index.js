@@ -64,7 +64,7 @@ const startServer = async () => {
         .filter(Boolean);
     };
 
-    const emitMessageToParticipants = (message) => {
+    const emitMessageToParticipants = (eventName, message) => {
       const participantIds = getParticipantIds(message?.chat);
       const targetSocketIds = [
         ...new Set(
@@ -73,12 +73,12 @@ const startServer = async () => {
       ];
 
       if (targetSocketIds.length) {
-        io.to(targetSocketIds).emit("receiveMessage", message);
+        io.to(targetSocketIds).emit(eventName, message);
         return;
       }
 
       if (message?.chat?._id) {
-        io.to(message.chat._id).emit("receiveMessage", message);
+        io.to(message.chat._id).emit(eventName, message);
       }
     };
 
@@ -128,11 +128,16 @@ const startServer = async () => {
       socket.on("sendMessage", (messageData) => {
         if (Array.isArray(messageData)) {
           messageData.forEach((msg) => {
-            emitMessageToParticipants(msg);
+            emitMessageToParticipants("receiveMessage", msg);
           });
         } else {
-          emitMessageToParticipants(messageData);
+          emitMessageToParticipants("receiveMessage", messageData);
         }
+      });
+
+      socket.on("messageReactionUpdated", (messageData) => {
+        if (!messageData) return;
+        emitMessageToParticipants("messageReactionUpdated", messageData);
       });
 
       socket.on("deleteMessage", ({ messageId, chatId }) => {
