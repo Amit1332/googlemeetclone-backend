@@ -52,6 +52,36 @@ const startServer = async () => {
       return socketIds?.size ? Array.from(socketIds) : [];
     };
 
+    const getParticipantIds = (chat) => {
+      if (!chat?.users?.length) return [];
+
+      return chat.users
+        .map((user) => {
+          if (!user) return "";
+          if (typeof user === "string") return user;
+          return user._id?.toString?.() || user.toString?.() || "";
+        })
+        .filter(Boolean);
+    };
+
+    const emitMessageToParticipants = (message) => {
+      const participantIds = getParticipantIds(message?.chat);
+      const targetSocketIds = [
+        ...new Set(
+          participantIds.flatMap((userId) => getTargetSockets(userId))
+        ),
+      ];
+
+      if (targetSocketIds.length) {
+        io.to(targetSocketIds).emit("receiveMessage", message);
+        return;
+      }
+
+      if (message?.chat?._id) {
+        io.to(message.chat._id).emit("receiveMessage", message);
+      }
+    };
+
     io.on("connection", (socket) => {
       socket.on("joinRoom", (roomId) => {
         socket.join(roomId);
@@ -98,10 +128,10 @@ const startServer = async () => {
       socket.on("sendMessage", (messageData) => {
         if (Array.isArray(messageData)) {
           messageData.forEach((msg) => {
-            io.to(msg.chat._id).emit("receiveMessage", msg);
+            emitMessageToParticipants(msg);
           });
         } else {
-          io.to(messageData.chat._id).emit("receiveMessage", messageData);
+          emitMessageToParticipants(messageData);
         }
       });
 
