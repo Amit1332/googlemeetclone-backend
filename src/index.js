@@ -325,6 +325,22 @@ const startServer = async () => {
         emitToUserIds([toUserId], "group-call:rejected", { chatId, userId });
       });
 
+      socket.on("call:reaction", ({ callMode, chatId, toUserId, userId, userName, emoji, id }) => {
+        if (!emoji) return;
+
+        const payload = { callMode, chatId, toUserId, userId, userName, emoji, id };
+
+        if (callMode === "group" && chatId) {
+          const participants = serializeGroupParticipants(chatId).map((participant) => participant._id);
+          emitToUserIds(participants, "call:reaction", payload);
+          return;
+        }
+
+        if (toUserId) {
+          emitToUserIds([toUserId], "call:reaction", payload);
+        }
+      });
+
       socket.on("call:accept", ({ fromUserId, toUserId }) => {
         const targetSockets = getTargetSockets(toUserId);
         if (targetSockets.length) {
