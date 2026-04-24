@@ -1,6 +1,6 @@
 const organizationService = require("../services/organization.service");
 
-// ✅ Create Org
+// ? Create Org
 exports.createOrganization = async (req, res) => {
   try {
     const { name } = req.body;
@@ -22,7 +22,7 @@ exports.createOrganization = async (req, res) => {
   }
 };
 
-// ✅ Get My Org
+// ? Get My Org
 exports.getMyOrganization = async (req, res) => {
   try {
     const org = await organizationService.getMyOrganization(req.user._id);
@@ -39,7 +39,7 @@ exports.getMyOrganization = async (req, res) => {
   }
 };
 
-// ✅ Add Member
+// ? Add Member
 exports.addMember = async (req, res) => {
   try {
     const { userId, role } = req.body;
@@ -62,7 +62,24 @@ exports.addMember = async (req, res) => {
   }
 };
 
-// ✅ Get Members
+exports.createMemberAccount = async (req, res) => {
+  try {
+    const result = await organizationService.createMemberAccount(req.params.id, req.body);
+
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: "Organization member account created successfully",
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// ? Get Members
 exports.getMembers = async (req, res) => {
   try {
     const members = await organizationService.getMembers(req.params.id);
@@ -79,7 +96,7 @@ exports.getMembers = async (req, res) => {
   }
 };
 
-// ✅ Remove Member
+// ? Remove Member
 exports.removeMember = async (req, res) => {
   try {
     const org = await organizationService.removeMember(
@@ -117,7 +134,7 @@ exports.getAllOrganizations = async (req, res) => {
   }
 };
 
-// ✅ Delete Organization (SuperAdmin)
+// ? Delete Organization (SuperAdmin)
 exports.deleteOrganization = async (req, res) => {
   try {
     const orgId = req.params.id;

@@ -12,6 +12,7 @@ Router.post("/", auth.isAuthenticatedUser,  orgController.createOrganization);
 Router.get("/me", auth.isAuthenticatedUser, orgController.getMyOrganization);
 
 Router.post("/:id/members", auth.isAuthenticatedUser, isOrgAdmin, orgController.addMember);
+Router.post("/:id/members/create-account", auth.isAuthenticatedUser, isOrgAdmin, orgController.createMemberAccount);
 Router.get("/:id/members", auth.isAuthenticatedUser,isOrgAdmin, orgController.getMembers);
 Router.delete("/:id/members/:userId", auth.isAuthenticatedUser,isOrgAdmin, orgController.removeMember);
 Router.get(
