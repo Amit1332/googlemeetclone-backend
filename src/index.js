@@ -144,12 +144,13 @@ const startServer = async () => {
         io.to(chatId).emit("messageDeleted", { messageId });
       });
 
-      socket.on("call:init", ({ fromUserId, toUserId, mediaType, callerName }) => {
+      socket.on("call:init", ({ fromUserId, toUserId, mediaType, callerName, callerAvatar }) => {
         const targetSockets = getTargetSockets(toUserId);
         if (targetSockets.length) {
           io.to(targetSockets).emit("call:incoming", {
             fromUserId,
             callerName,
+            callerAvatar,
             mediaType,
           });
           return;
@@ -241,3 +242,4 @@ const unexpectedErrorHandler = (error) => {
 
 process.on("uncaughtException", unexpectedErrorHandler);
 process.on("unhandledRejection", unexpectedErrorHandler);
+
