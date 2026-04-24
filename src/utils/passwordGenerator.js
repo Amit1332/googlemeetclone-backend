@@ -1,22 +1,22 @@
-function generateStrongPassword(length = 12) {
-  const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const numbers = "0123456789";
-  const specials = "!@#$%^&*()_+[]{}|;:,.<>?";
-  const allChars = letters + numbers + specials;
+function buildPasswordBase(seed = "User") {
+  const alphaOnly = String(seed).replace(/[^a-zA-Z]/g, "").trim();
+  const safeBase = alphaOnly || "User";
+  const normalized =
+    safeBase.charAt(0).toUpperCase() + safeBase.slice(1).toLowerCase();
 
-  let password = "";
-  password += letters.charAt(Math.floor(Math.random() * letters.length));
-  password += numbers.charAt(Math.floor(Math.random() * numbers.length));
-  password += specials.charAt(Math.floor(Math.random() * specials.length));
-
-  for (let i = 3; i < length; i++) {
-    password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  if (normalized.length >= 2 && /[a-z]/.test(normalized.slice(1))) {
+    return normalized;
   }
 
-  return password.split("").sort(() => Math.random() - 0.5).join("");
+  return "User";
 }
 
+function generateStrongPassword(seed = "User") {
+  const base = buildPasswordBase(seed);
+  const digits = String(Math.floor(1000 + Math.random() * 9000));
+  return base + "@" + digits;
+}
 
 module.exports = {
-  generateStrongPassword, 
-}
+  generateStrongPassword,
+};

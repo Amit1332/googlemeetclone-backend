@@ -23,6 +23,7 @@ const startServer = async () => {
     });
 
     const activeUsers = new Map();
+    const groupCallRooms = new Map();
 
     const getActiveUserIds = () => Array.from(activeUsers.keys());
 
@@ -52,6 +53,13 @@ const startServer = async () => {
       return socketIds?.size ? Array.from(socketIds) : [];
     };
 
+    const emitToUserIds = (userIds, eventName, payload) => {
+      const targetSocketIds = [...new Set(userIds.flatMap((userId) => getTargetSockets(userId)))];
+      if (targetSocketIds.length) {
+        io.to(targetSocketIds).emit(eventName, payload);
+      }
+    };
+
     const getParticipantIds = (chat) => {
       if (!chat?.users?.length) return [];
 
@@ -67,9 +75,7 @@ const startServer = async () => {
     const emitMessageToParticipants = (eventName, message) => {
       const participantIds = getParticipantIds(message?.chat);
       const targetSocketIds = [
-        ...new Set(
-          participantIds.flatMap((userId) => getTargetSockets(userId))
-        ),
+        ...new Set(participantIds.flatMap((userId) => getTargetSockets(userId))),
       ];
 
       if (targetSocketIds.length) {
@@ -80,6 +86,83 @@ const startServer = async () => {
       if (message?.chat?._id) {
         io.to(message.chat._id).emit(eventName, message);
       }
+    };
+
+    const normalizeParticipant = (participant) => {
+      if (!participant) return null;
+
+      const userId =
+        participant._id?.toString?.() ||
+        participant.userId?.toString?.() ||
+        participant.id?.toString?.() ||
+        "";
+
+      if (!userId) return null;
+
+      return {
+        _id: userId,
+        name: participant.name || participant.userName || "Unknown",
+        profilePicture: participant.profilePicture || participant.userAvatar || "",
+      };
+    };
+
+    const ensureGroupCallRoom = (chatId, meta = {}) => {
+      if (!groupCallRooms.has(chatId)) {
+        groupCallRooms.set(chatId, {
+          chatId,
+          chatName: meta.chatName || "",
+          chatPicture: meta.chatPicture || "",
+          participants: new Map(),
+        });
+      }
+
+      const room = groupCallRooms.get(chatId);
+      if (meta.chatName) room.chatName = meta.chatName;
+      if (meta.chatPicture) room.chatPicture = meta.chatPicture;
+      return room;
+    };
+
+    const serializeGroupParticipants = (chatId) => {
+      const room = groupCallRooms.get(chatId);
+      if (!room) return [];
+      return Array.from(room.participants.values());
+    };
+
+    const addGroupParticipant = (chatId, participant, meta = {}) => {
+      const normalizedParticipant = normalizeParticipant(participant);
+      if (!normalizedParticipant) return null;
+
+      const room = ensureGroupCallRoom(chatId, meta);
+      room.participants.set(normalizedParticipant._id, normalizedParticipant);
+      return room;
+    };
+
+    const removeGroupParticipant = (chatId, userId) => {
+      const room = groupCallRooms.get(chatId);
+      if (!room) return { participants: [], notifyUserIds: [] };
+
+      room.participants.delete(userId);
+      const participants = Array.from(room.participants.values());
+      const notifyUserIds = participants.map((participant) => participant._id);
+
+      if (!participants.length) {
+        groupCallRooms.delete(chatId);
+      }
+
+      return { participants, notifyUserIds };
+    };
+
+    const removeUserFromAllGroupCalls = (userId) => {
+      const leaveEvents = [];
+
+      groupCallRooms.forEach((room, chatId) => {
+        if (!room.participants.has(userId)) return;
+
+        const { participants, notifyUserIds } = removeGroupParticipant(chatId, userId);
+        leaveEvents.push({ chatId, participants, notifyUserIds });
+      });
+
+      return leaveEvents;
     };
 
     io.on("connection", (socket) => {
@@ -162,6 +245,86 @@ const startServer = async () => {
         }
       });
 
+      socket.on(
+        "group-call:init",
+        ({
+          chatId,
+          fromUserId,
+          callerName,
+          callerAvatar,
+          chatName,
+          chatPicture,
+          participantIds = [],
+          participants = [],
+        }) => {
+          if (!chatId || !fromUserId) return;
+
+          addGroupParticipant(
+            chatId,
+            { _id: fromUserId, name: callerName, profilePicture: callerAvatar },
+            { chatName, chatPicture }
+          );
+
+          const payloadParticipants = [
+            normalizeParticipant({ _id: fromUserId, name: callerName, profilePicture: callerAvatar }),
+            ...participants.map(normalizeParticipant).filter(Boolean),
+          ];
+
+          emitToUserIds(participantIds, "group-call:incoming", {
+            chatId,
+            fromUserId,
+            callerName,
+            callerAvatar,
+            chatName,
+            chatPicture,
+            participants: payloadParticipants,
+          });
+
+          emitToUserIds([fromUserId], "group-call:participants", {
+            chatId,
+            participants: serializeGroupParticipants(chatId),
+          });
+        }
+      );
+
+      socket.on("group-call:join", ({ chatId, userId, userName, userAvatar }) => {
+        if (!chatId || !userId) return;
+
+        const room = addGroupParticipant(
+          chatId,
+          { _id: userId, name: userName, profilePicture: userAvatar },
+          {}
+        );
+        if (!room) return;
+
+        const participants = serializeGroupParticipants(chatId);
+        const otherUserIds = participants
+          .map((participant) => participant._id)
+          .filter((participantId) => participantId !== userId);
+
+        emitToUserIds([userId], "group-call:participants", { chatId, participants });
+        emitToUserIds(otherUserIds, "group-call:user-joined", {
+          chatId,
+          participant: normalizeParticipant({ _id: userId, name: userName, profilePicture: userAvatar }),
+          participants,
+        });
+      });
+
+      socket.on("group-call:leave", ({ chatId, userId }) => {
+        if (!chatId || !userId) return;
+        const { participants, notifyUserIds } = removeGroupParticipant(chatId, userId);
+        emitToUserIds(notifyUserIds, "group-call:user-left", {
+          chatId,
+          userId,
+          participants,
+        });
+      });
+
+      socket.on("group-call:reject", ({ chatId, userId, toUserId }) => {
+        if (!chatId || !userId || !toUserId) return;
+        emitToUserIds([toUserId], "group-call:rejected", { chatId, userId });
+      });
+
       socket.on("call:accept", ({ fromUserId, toUserId }) => {
         const targetSockets = getTargetSockets(toUserId);
         if (targetSockets.length) {
@@ -183,21 +346,35 @@ const startServer = async () => {
         }
       });
 
-      socket.on("webrtc:offer", ({ fromUserId, toUserId, sdp }) => {
+      socket.on("webrtc:offer", ({ fromUserId, toUserId, sdp, callMode, chatId, userName, userAvatar }) => {
         const targetSockets = getTargetSockets(toUserId);
         if (targetSockets.length) {
-          io.to(targetSockets).emit("webrtc:offer", { fromUserId, sdp });
+          io.to(targetSockets).emit("webrtc:offer", {
+            fromUserId,
+            sdp,
+            callMode,
+            chatId,
+            userName,
+            userAvatar,
+          });
         }
       });
 
-      socket.on("webrtc:answer", ({ fromUserId, toUserId, sdp }) => {
+      socket.on("webrtc:answer", ({ fromUserId, toUserId, sdp, callMode, chatId, userName, userAvatar }) => {
         const targetSockets = getTargetSockets(toUserId);
         if (targetSockets.length) {
-          io.to(targetSockets).emit("webrtc:answer", { fromUserId, sdp });
+          io.to(targetSockets).emit("webrtc:answer", {
+            fromUserId,
+            sdp,
+            callMode,
+            chatId,
+            userName,
+            userAvatar,
+          });
         }
       });
 
-      socket.on("webrtc:ice-candidate", ({ fromUserId, toUserId, candidate }) => {
+      socket.on("webrtc:ice-candidate", ({ fromUserId, toUserId, candidate, callMode, chatId }) => {
         if (!candidate) return;
 
         const targetSockets = getTargetSockets(toUserId);
@@ -205,6 +382,8 @@ const startServer = async () => {
           io.to(targetSockets).emit("webrtc:ice-candidate", {
             fromUserId,
             candidate,
+            callMode,
+            chatId,
           });
         }
       });
@@ -213,6 +392,14 @@ const startServer = async () => {
         const userId = socket.data.userId;
         if (removeActiveSocket(userId, socket.id)) {
           io.emit("call:ended", { fromUserId: userId });
+          const leaveEvents = removeUserFromAllGroupCalls(userId);
+          leaveEvents.forEach(({ chatId, participants, notifyUserIds }) => {
+            emitToUserIds(notifyUserIds, "group-call:user-left", {
+              chatId,
+              userId,
+              participants,
+            });
+          });
         }
         io.emit("activeUsersList", getActiveUserIds());
       });
@@ -242,4 +429,3 @@ const unexpectedErrorHandler = (error) => {
 
 process.on("uncaughtException", unexpectedErrorHandler);
 process.on("unhandledRejection", unexpectedErrorHandler);
-

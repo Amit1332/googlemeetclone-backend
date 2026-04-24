@@ -84,7 +84,7 @@ exports.createMemberAccount = async (orgId, payload = {}) => {
     throw new Error("A user with this email already exists");
   }
 
-  const password = generateStrongPassword(14);
+  const password = generateStrongPassword(name);
   const user = await User.create({
     name: name.trim(),
     email: normalizedEmail,
