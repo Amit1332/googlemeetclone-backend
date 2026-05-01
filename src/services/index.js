@@ -5,5 +5,7 @@ module.exports.tokenService = require("./token.service")
 module.exports.chatService = require("./chat.service")
 module.exports.messageService = require("./message.service")
 module.exports.organizationsService = require("./organization.service")
+module.exports.projectService = require("./project.service")
+module.exports.integrationService = require("./integration.service")
 
 
