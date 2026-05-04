@@ -8,7 +8,10 @@ const createProject = catchAsync(async (req, res) => {
 });
 
 const getProjects = catchAsync(async (req, res) => {
-  const orgId = req.user.organization;
+  const orgId = req.user?.organization || req.integration?.organization;
+  if (!orgId) {
+    return res.status(HTTP_STATUS_CODES.UNAUTHORIZED).send({ message: "Authentication required" });
+  }
   const projects = await projectService.getProjectsByOrg(orgId);
   res.status(HTTP_STATUS_CODES.OK).send({ data: projects });
 });

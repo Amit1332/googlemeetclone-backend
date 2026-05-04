@@ -2,6 +2,8 @@ const express = require("express");
 const { projectController } = require("../../controller");
 const auth = require("../../middleware/auth");
 
+const flexibleAuth = require("../../middleware/flexibleAuth");
+
 const router = express.Router();
 
 router.post(
@@ -12,7 +14,7 @@ router.post(
 
 router.get(
   "/",
-  auth.isAuthenticatedUser,
+  flexibleAuth,
   projectController.getProjects
 );
 
