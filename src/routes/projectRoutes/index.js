@@ -18,6 +18,12 @@ router.get(
   projectController.getProjects
 );
 
+router.get(
+  "/:id",
+  flexibleAuth,
+  projectController.getProject
+);
+
 router.post(
   "/add-members",
   auth.isAuthenticatedUser,

@@ -96,6 +96,22 @@ exports.getMembers = async (req, res) => {
   }
 };
 
+exports.updateMember = async (req, res) => {
+  try {
+    const result = await organizationService.updateMember(req.params.id, req.params.userId, req.body);
+    res.json({
+      success: true,
+      data: result,
+      message: "Member updated successfully",
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 // ? Remove Member
 exports.removeMember = async (req, res) => {
   try {

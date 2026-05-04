@@ -16,6 +16,19 @@ const getProjects = catchAsync(async (req, res) => {
   res.status(HTTP_STATUS_CODES.OK).send({ data: projects });
 });
 
+const getProject = catchAsync(async (req, res) => {
+  const projectId = req.params.id;
+  const project = await projectService.getProjectById(projectId);
+  
+  // Verify organization access
+  const orgId = req.user?.organization || req.integration?.organization;
+  if (project.organization.toString() !== orgId?.toString()) {
+    return res.status(HTTP_STATUS_CODES.FORBIDDEN).send({ message: "Unauthorized access to this project" });
+  }
+  
+  res.status(HTTP_STATUS_CODES.OK).send({ data: project });
+});
+
 const addMembers = catchAsync(async (req, res) => {
   const { projectId, memberIds } = req.body;
   const project = await projectService.addMembers(projectId, memberIds);
@@ -25,5 +38,6 @@ const addMembers = catchAsync(async (req, res) => {
 module.exports = {
   createProject,
   getProjects,
+  getProject,
   addMembers,
 };

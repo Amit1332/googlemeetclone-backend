@@ -49,6 +49,17 @@ const userSchema = new mongoose.Schema(
       default: "",
       maxlength: [160, "Status message cannot exceed 160 characters"],
     },
+    jobTitle: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    skills: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
      birthday: {
       type: Date,
       required: false, // optional

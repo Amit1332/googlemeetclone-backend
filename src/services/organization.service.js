@@ -63,7 +63,7 @@ exports.addMember = async (orgId, userId, role = "member") => {
 };
 
 exports.createMemberAccount = async (orgId, payload = {}) => {
-  const { name, email, role = "member" } = payload;
+  const { name, email, role = "member", jobTitle = "", skills = [] } = payload;
 
   if (!name?.trim()) {
     throw new Error("Member name is required");
@@ -91,6 +91,8 @@ exports.createMemberAccount = async (orgId, payload = {}) => {
     password,
     organization: orgId,
     status: "offline",
+    jobTitle: jobTitle.trim(),
+    skills: Array.isArray(skills) ? skills : [],
   });
 
   org.members.push({
@@ -99,7 +101,7 @@ exports.createMemberAccount = async (orgId, payload = {}) => {
   });
   await org.save();
 
-  const createdUser = await User.findById(user._id).select("name email profilePicture organization");
+  const createdUser = await User.findById(user._id).select("name email profilePicture organization jobTitle skills");
 
   return {
     member: createdUser,
@@ -113,11 +115,31 @@ exports.createMemberAccount = async (orgId, payload = {}) => {
 // ? Get Members
 exports.getMembers = async (orgId) => {
   const org = await Organization.findById(orgId)
-    .populate("members.user", "name email profilePicture");
+    .populate("members.user", "name email profilePicture jobTitle skills");
 
   if (!org) throw new Error("Organization not found");
 
   return org.members;
+};
+
+exports.updateMember = async (orgId, userId, payload) => {
+  const { name, jobTitle, skills } = payload;
+  
+  const org = await Organization.findById(orgId);
+  if (!org) throw new Error("Organization not found");
+
+  const isMember = org.members.some(m => m.user.toString() === userId);
+  if (!isMember) throw new Error("User is not a member of this organization");
+
+  const updateData = {};
+  if (name !== undefined) updateData.name = name.trim();
+  if (jobTitle !== undefined) updateData.jobTitle = jobTitle.trim();
+  if (skills !== undefined) updateData.skills = Array.isArray(skills) ? skills : [];
+
+  const user = await User.findByIdAndUpdate(userId, updateData, { new: true })
+    .select("name email profilePicture organization jobTitle skills");
+
+  return user;
 };
 
 // ? Remove Member
