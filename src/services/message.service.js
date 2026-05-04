@@ -7,6 +7,7 @@ const cloudinary = require("cloudinary").v2
 
 const messagePopulate = [
   { path: "sender", select: "-password" },
+  { path: "broadcastSource", select: "name" },
   {
     path: "chat",
     populate: [
@@ -22,7 +23,7 @@ const messagePopulate = [
 ];
 
 const sendMessage = async (authId, userBody, fileUrls = []) => {
-  const { message, chatId, replyTo } = userBody;
+  const { message, chatId, replyTo, broadcastSource } = userBody;
 
 
   const filesArray = fileUrls.map((file) => ({
@@ -39,7 +40,8 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
       message: message || "",
       files: filesArray,
     },
-     replyTo: replyTo || null,
+    replyTo: replyTo || null,
+    broadcastSource: broadcastSource || null,
   });
 
   newMessage = await newMessage.populate(messagePopulate);

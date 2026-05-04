@@ -38,6 +38,11 @@ const Schema = new mongoose.Schema(
       default: null,
     },
     chat: { type: mongoose.Schema.Types.ObjectId, ref: "chat", required: true },
+    broadcastSource: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "project",
+      default: null,
+    },
     seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
     reactions: [reactionSchema],
   },

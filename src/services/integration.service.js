@@ -53,37 +53,72 @@ const validateCredentials = async (clientId, clientSecret) => {
 };
 
 /**
- * Broadcasts a message to all members of a project.
+ * Broadcasts a message to project members.
  * @param {string} projectId 
  * @param {string} senderId 
  * @param {string} messageText 
- * @param {string} orgId - To ensure multi-tenant safety
+ * @param {string} orgId 
+ * @param {string[]} targetUserIds - Optional subset of members
  */
-const broadcastToProject = async (projectId, senderId, messageText, orgId) => {
+const broadcastToProject = async (projectId, senderId, messageText, orgId, targetUserIds = []) => {
   const project = await projectService.getProjectById(projectId);
   
-  // Ensure the project belongs to the same organization that owns the credentials
   if (project.organization.toString() !== orgId.toString()) {
     throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Unauthorized: Project belongs to another organization");
   }
 
-  if (!project.chatId) {
-    throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Project does not have an associated group chat");
+  // Determine who receives the message
+  let recipients = project.members;
+  const isSubset = targetUserIds && targetUserIds.length > 0;
+
+  if (isSubset) {
+    const memberIdSet = new Set(project.members.map(m => m._id.toString()));
+    recipients = project.members.filter(m => targetUserIds.includes(m._id.toString()));
+    
+    // Ensure all target users are actually members of the project
+    if (recipients.length !== targetUserIds.length) {
+      throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "One or more target users are not members of this project");
+    }
   }
 
-  // Ensure the sender is in the group chat so the message is visible and valid
-  await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
+  const results = [];
 
-  const newMessage = await messageService.sendMessage(senderId, {
-    chatId: project.chatId,
-    message: messageText,
-  });
+  if (isSubset) {
+    // Private Project Broadcast: Send individual messages to selected users
+    for (const member of recipients) {
+      try {
+        const chat = await chatService.accessChat(senderId, { userId: member._id, isGroupChat: false });
+        const newMessage = await messageService.sendMessage(senderId, {
+          chatId: chat._id,
+          message: messageText,
+          broadcastSource: project._id, // Attach project branding
+        });
+        results.push({ userId: member._id, status: "success", messageId: newMessage._id });
+      } catch (error) {
+        results.push({ userId: member._id, status: "failed", error: error.message });
+      }
+    }
+  } else {
+    // Public Project Broadcast: Send to Group Chat
+    if (!project.chatId) {
+      throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Project does not have an associated group chat");
+    }
+
+    await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
+    const newMessage = await messageService.sendMessage(senderId, {
+      chatId: project.chatId,
+      message: messageText,
+      broadcastSource: project._id,
+    });
+    
+    results.push({ chatId: project.chatId, status: "success", messageId: newMessage._id });
+  }
 
   return {
     projectId,
-    chatId: project.chatId,
-    messageId: newMessage._id,
-    status: "success",
+    projectChatId: project.chatId,
+    isPrivateBroadcast: isSubset,
+    processed: results,
   };
 };
 
