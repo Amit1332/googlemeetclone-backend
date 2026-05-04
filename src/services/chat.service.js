@@ -110,10 +110,10 @@ const createGroupChat = async (authUserId, groupName, users) => {
   // Ensure auth user is included
   const allUsers = [...new Set([...users, authUserId])];
 
-  if (allUsers.length < 3) {
+  if (allUsers.length < 2) {
     throw new ApiError(
       HTTP_STATUS_CODES.BAD_REQUEST,
-      "A group must include at least 2 members + admin"
+      "A group must include at least 1 member + admin"
     );
   }
     const userDocs = await userModel.find({ _id: { $in: allUsers } });

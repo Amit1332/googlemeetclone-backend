@@ -1,15 +1,23 @@
 const Project = require("../model/project.schema");
 const ApiError = require("../utils/ApiError");
 const { HTTP_STATUS_CODES } = require("@simple-node/http-status-codes");
+const chatService = require("./chat.service");
 
 const createProject = async (ownerId, projectBody) => {
   const { name, organization, members } = projectBody;
   
+  // Create a group chat for the project
+  // Filter out the owner from members if they are already there to avoid duplicates in allUsers
+  const otherMembers = (members || []).filter(m => m.toString() !== ownerId.toString());
+  
+  const groupChat = await chatService.createGroupChat(ownerId, `Project: ${name}`, otherMembers);
+
   const project = await Project.create({
     name,
     organization,
     owner: ownerId,
     members: members || [],
+    chatId: groupChat._id,
   });
 
   return project;
@@ -39,6 +47,12 @@ const addMembers = async (projectId, memberIds) => {
   
   project.members.push(...newMembers);
   await project.save();
+
+  // Sync with group chat
+  if (project.chatId) {
+    await chatService.inviteUserToGroupChat(project.owner, project.members.map(m => m.toString()), project.chatId);
+  }
+
   return project;
 };
 

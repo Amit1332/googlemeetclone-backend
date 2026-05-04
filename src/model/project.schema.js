@@ -27,6 +27,10 @@ const projectSchema = new mongoose.Schema(
         ref: "user",
       },
     ],
+    chatId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "chat",
+    },
     isActive: {
       type: Boolean,
       default: true,

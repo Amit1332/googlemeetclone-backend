@@ -67,26 +67,23 @@ const broadcastToProject = async (projectId, senderId, messageText, orgId) => {
     throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Unauthorized: Project belongs to another organization");
   }
 
-  const members = project.members;
-  const results = [];
-
-  for (const member of members) {
-    try {
-      const chat = await chatService.accessChat(senderId, { userId: member._id, isGroupChat: false });
-      const newMessage = await messageService.sendMessage(senderId, {
-        chatId: chat._id,
-        message: messageText,
-      });
-      results.push({ userId: member._id, status: "success", messageId: newMessage._id });
-    } catch (error) {
-      results.push({ userId: member._id, status: "failed", error: error.message });
-    }
+  if (!project.chatId) {
+    throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Project does not have an associated group chat");
   }
+
+  // Ensure the sender is in the group chat so the message is visible and valid
+  await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
+
+  const newMessage = await messageService.sendMessage(senderId, {
+    chatId: project.chatId,
+    message: messageText,
+  });
 
   return {
     projectId,
-    totalMembers: members.length,
-    processed: results,
+    chatId: project.chatId,
+    messageId: newMessage._id,
+    status: "success",
   };
 };
 
