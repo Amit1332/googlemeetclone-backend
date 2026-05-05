@@ -78,11 +78,19 @@ const broadcast = async (payload, orgId) => {
     for (const item of personalizedMessages) {
       const { userId, message: individualMessage } = item;
       try {
-        const chat = await chatService.accessChat(senderId, { userId, isGroupChat: false });
+        let chat;
+        if (project) {
+          // Use project-branded private chat
+          chat = await chatService.getProjectPrivateChat(senderId, userId, project, orgId);
+        } else {
+          // Normal DM
+          chat = await chatService.accessChat(senderId, { userId, isGroupChat: false });
+        }
+
         const newMessage = await messageService.sendMessage(senderId, {
           chatId: chat._id,
           message: individualMessage,
-          broadcastSource: project ? project._id : null, // Add project branding if projectId was provided
+          broadcastSource: project ? project._id : null,
         });
         results.push({ userId, status: "success", messageId: newMessage._id });
       } catch (error) {
@@ -124,12 +132,12 @@ const broadcast = async (payload, orgId) => {
     const isSelective = Array.isArray(targetUserIds) && targetUserIds.length > 0;
 
     if (isSelective) {
-      // Case 3: Selective Project Broadcast (DMs with Project Badge)
+      // Case 3: Selective Project Broadcast (DMs with Project Badge and Name)
       const recipients = project.members.filter(m => targetUserIds.includes(m._id.toString()));
       
       for (const member of recipients) {
         try {
-          const chat = await chatService.accessChat(senderId, { userId: member._id, isGroupChat: false });
+          const chat = await chatService.getProjectPrivateChat(senderId, member._id, project, orgId);
           const newMessage = await messageService.sendMessage(senderId, {
             chatId: chat._id,
             message: message,

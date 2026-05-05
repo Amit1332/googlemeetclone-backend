@@ -13,7 +13,12 @@ const Schema = new mongoose.Schema({
     groupAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
     groupPicture: {
         type: String,
-    }
+    },
+    broadcastSource: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "project",
+      default: null,
+    },
 }, { timestamps: true });
 
 const chatModel = new mongoose.model('chat', Schema);

@@ -288,6 +288,30 @@ const  deleteGroupChat = async (authUser, chatId) => {
 
 
 
+const getProjectPrivateChat = async (senderId, memberId, project, orgId) => {
+  // Find a "Group Chat" with only these users that is specifically for this project
+  // We use isGroupChat: true and chatName: Project Name so it shows the project in the sidebar
+  let chat = await chatModel.findOne({
+    isGroupChat: true,
+    broadcastSource: project._id,
+    users: { $all: [senderId, memberId], $size: senderId.toString() === memberId.toString() ? 1 : 2 },
+  }).populate("users", "-password");
+
+  if (!chat) {
+    chat = await chatModel.create({
+      chatName: project.name,
+      isGroupChat: true,
+      users: senderId.toString() === memberId.toString() ? [senderId] : [senderId, memberId],
+      groupAdmin: senderId,
+      organization: orgId,
+      broadcastSource: project._id,
+    });
+    chat = await chatModel.findById(chat._id).populate("users", "-password");
+  }
+
+  return chat;
+};
+
 module.exports = {
 accessChat,
 deleteChat,
@@ -296,5 +320,6 @@ updateGroupChat,
 exitGroupChat,
 deleteGroupChat,
 removeUserFromGroupChat,
-inviteUserToGroupChat
+inviteUserToGroupChat,
+getProjectPrivateChat
 };
