@@ -78,19 +78,23 @@ const broadcast = async (payload, orgId) => {
     for (const item of personalizedMessages) {
       const { userId, message: individualMessage } = item;
       try {
-        let chat;
+        let chatId;
         if (project) {
-          // Use project-branded private chat
-          chat = await chatService.getProjectPrivateChat(senderId, userId, project, orgId);
+          // Use project's central group chat
+          chatId = project.chatId;
+          // Ensure sender is in the group
+          await chatService.inviteUserToGroupChat(project.owner, [senderId], chatId);
         } else {
           // Normal DM
-          chat = await chatService.accessChat(senderId, { userId, isGroupChat: false });
+          const chat = await chatService.accessChat(senderId, { userId, isGroupChat: false });
+          chatId = chat._id;
         }
 
         const newMessage = await messageService.sendMessage(senderId, {
-          chatId: chat._id,
+          chatId,
           message: individualMessage,
           broadcastSource: project ? project._id : null,
+          recipient: project ? userId : null, // Set recipient for project privacy
         });
         results.push({ userId, status: "success", messageId: newMessage._id });
       } catch (error) {
@@ -132,16 +136,19 @@ const broadcast = async (payload, orgId) => {
     const isSelective = Array.isArray(targetUserIds) && targetUserIds.length > 0;
 
     if (isSelective) {
-      // Case 3: Selective Project Broadcast (DMs with Project Badge and Name)
+      // Case 3: Selective Project Broadcast (Group Chat with Filtered Visibility)
       const recipients = project.members.filter(m => targetUserIds.includes(m._id.toString()));
       
       for (const member of recipients) {
         try {
-          const chat = await chatService.getProjectPrivateChat(senderId, member._id, project, orgId);
+          // Ensure sender is in the group
+          await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
+
           const newMessage = await messageService.sendMessage(senderId, {
-            chatId: chat._id,
+            chatId: project.chatId,
             message: message,
             broadcastSource: project._id,
+            recipient: member._id, // Set recipient for targeted privacy
           });
           results.push({ userId: member._id, status: "success", messageId: newMessage._id });
         } catch (error) {

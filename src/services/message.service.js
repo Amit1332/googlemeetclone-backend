@@ -23,7 +23,7 @@ const messagePopulate = [
 ];
 
 const sendMessage = async (authId, userBody, fileUrls = []) => {
-  const { message, chatId, replyTo, broadcastSource } = userBody;
+  const { message, chatId, replyTo, broadcastSource, recipient } = userBody;
 
 
   const filesArray = fileUrls.map((file) => ({
@@ -42,6 +42,7 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
     },
     replyTo: replyTo || null,
     broadcastSource: broadcastSource || null,
+    recipient: recipient || null,
   });
 
   newMessage = await newMessage.populate(messagePopulate);
@@ -56,7 +57,23 @@ const getMessages = async (authId, chatId) => {
     throw new Error("Unauthorized access to this chat");
   }
 
-  return await messageModel.find({ chat: chatId })
+  // Define visibility rules for Project/Broadcast messages
+  // 1. If chat is NOT linked to a project, show everything
+  // 2. If chat IS linked to a project (broadcastSource):
+  //    - Show if recipient is NULL (it's a public broadcast to the group)
+  //    - Show if I am the SENDER
+  //    - Show if I am the RECIPIENT
+  const query = { chat: chatId };
+  
+  if (chat.broadcastSource) {
+    query.$or = [
+      { recipient: null }, // Public message
+      { sender: authId },  // I sent it
+      { recipient: authId } // It was sent to me
+    ];
+  }
+
+  return await messageModel.find(query)
     .populate(messagePopulate);
 };
 

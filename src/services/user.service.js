@@ -175,13 +175,37 @@ const getChattedUsers = async (authUserId) => {
   .populate("groupAdmin", "-password")
   .populate("latestMessage");
 
-  const getLastActivityAt = (chat) =>
-    chat?.latestMessage?.createdAt || chat?.updatedAt || chat?.createdAt || null;
-
   const result = [];
   const seen = new Set();
 
-  chats
+  // For project-linked chats, we must find the latest message VISIBLE to this user
+  // to avoid privacy leaks in the sidebar preview.
+  const processedChats = await Promise.all(chats.map(async (chat) => {
+    const chatObj = chat.toObject();
+    
+    if (chat.broadcastSource) {
+      const latestVisibleMessage = await messageModel.findOne({
+        chat: chat._id,
+        $or: [
+          { recipient: null },
+          { sender: authUserId },
+          { recipient: authUserId }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .populate("sender", "name")
+      .populate("recipient", "name");
+      
+      chatObj.latestMessage = latestVisibleMessage;
+    }
+    
+    return chatObj;
+  }));
+
+  const getLastActivityAt = (chat) =>
+    chat?.latestMessage?.createdAt || chat?.updatedAt || chat?.createdAt || null;
+
+  processedChats
   .sort((firstChat, secondChat) => {
     const firstActivity = new Date(getLastActivityAt(firstChat) || 0).getTime();
     const secondActivity = new Date(getLastActivityAt(secondChat) || 0).getTime();
@@ -191,18 +215,16 @@ const getChattedUsers = async (authUserId) => {
     const lastActivityAt = getLastActivityAt(chat);
 
     if (chat.isGroupChat) {
-      // Group chat → push group object
       if (!seen.has(String(chat._id))) {
         result.push({
           type: "group",
           lastActivityAt,
           latestMessage: chat.latestMessage || null,
-          ...chat.toObject()
+          ...chat
         });
         seen.add(String(chat._id));
       }
     } else {
-      // 1-to-1 chat → push other user
       chat.users.forEach(u => {
         if (u && String(u._id) !== String(authUserId)) {
           if (!seen.has(String(u._id))) {
@@ -210,7 +232,7 @@ const getChattedUsers = async (authUserId) => {
               type: "user",
               lastActivityAt,
               latestMessage: chat.latestMessage || null,
-              ...u.toObject()
+              ...u
             });
             seen.add(String(u._id));
           }

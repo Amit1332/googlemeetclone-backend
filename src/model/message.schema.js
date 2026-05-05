@@ -43,6 +43,11 @@ const Schema = new mongoose.Schema(
       ref: "project",
       default: null,
     },
+    recipient: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "user",
+      default: null,
+    },
     seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
     reactions: [reactionSchema],
   },
