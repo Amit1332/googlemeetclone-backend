@@ -88,6 +88,9 @@ const startServer = async () => {
       }
     };
 
+    // 🔥 GLOBAL SOCKET HELPER
+    global.ioEmitMessage = emitMessageToParticipants;
+
     const normalizeParticipant = (participant) => {
       if (!participant) return null;
 

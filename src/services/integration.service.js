@@ -134,6 +134,12 @@ const broadcast = async (payload, orgId) => {
           broadcastSource: project ? project._id : null,
           recipient: project ? userId : null,
         });
+
+        // 🔥 Emit for Real-time
+        if (global.ioEmitMessage) {
+          global.ioEmitMessage("receiveMessage", newMessage);
+        }
+
         results.push({ userId, status: "success", messageId: newMessage._id });
       } catch (error) {
         results.push({ userId, status: "failed", error: error.message });
@@ -155,6 +161,12 @@ const broadcast = async (payload, orgId) => {
           chatId: chat._id,
           message: message,
         });
+
+        // 🔥 Emit for Real-time
+        if (global.ioEmitMessage) {
+          global.ioEmitMessage("receiveMessage", newMessage);
+        }
+
         results.push({ userId, status: "success", messageId: newMessage._id });
       } catch (error) {
         results.push({ userId, status: "failed", error: error.message });
@@ -192,6 +204,12 @@ const broadcast = async (payload, orgId) => {
             broadcastSource: project._id,
             recipient: member._id, // Set recipient for targeted privacy
           });
+
+          // 🔥 Emit for Real-time
+          if (global.ioEmitMessage) {
+            global.ioEmitMessage("receiveMessage", newMessage);
+          }
+
           results.push({ userId: member._id, status: "success", messageId: newMessage._id });
         } catch (error) {
           results.push({ userId: member._id, status: "failed", error: error.message });
@@ -207,6 +225,11 @@ const broadcast = async (payload, orgId) => {
         broadcastSource: project._id,
       });
       
+      // 🔥 Emit for Real-time
+      if (global.ioEmitMessage) {
+        global.ioEmitMessage("receiveMessage", newMessage);
+      }
+
       return { type: "project_wide", projectId, chatId: chatId, messageId: newMessage._id, status: "success" };
     }
   }
