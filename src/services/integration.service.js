@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const AppCredential = require("../model/appCredential.schema");
 const projectService = require("./project.service");
 const chatService = require("./chat.service");
+const chatModel = require("../model/chat.schema");
 const messageService = require("./message.service");
 const ApiError = require("../utils/ApiError");
 const { HTTP_STATUS_CODES } = require("@simple-node/http-status-codes");
