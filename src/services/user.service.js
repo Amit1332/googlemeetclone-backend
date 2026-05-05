@@ -4,6 +4,7 @@ const email = require("../services/email.service");
 const ApiError = require("../utils/ApiError");
 const { ERROR_MESSAGES } = require("../helper/messages");
 const chatModel = require("../model/chat.schema");
+const messageModel = require("../model/message.schema");
 const bcrypt = require("bcryptjs");
 
 const createUser = async (userBody) => {

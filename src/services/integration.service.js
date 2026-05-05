@@ -55,6 +55,29 @@ const validateCredentials = async (clientId, clientSecret) => {
 const organizationService = require("./organization.service");
 
 /**
+ * Ensures a project has an associated group chat.
+ * Lazily creates one if it's missing (for older projects).
+ */
+const ensureProjectChat = async (project) => {
+  if (project.chatId) {
+    const chat = await chatModel.findById(project.chatId);
+    if (chat) return chat;
+  }
+
+  // Create a new group chat for the project
+  const ownerId = project.owner;
+  const memberIds = project.members.map(m => m._id || m).filter(id => id.toString() !== ownerId.toString());
+  
+  const groupChat = await chatService.createGroupChat(ownerId, `Project: ${project.name}`, memberIds);
+  
+  // Link it to the project
+  project.chatId = groupChat._id;
+  await project.save();
+  
+  return groupChat;
+};
+
+/**
  * Advanced Broadcast system handling 4 major cases:
  * 1. Org-wide: message + no projectId
  * 2. Project-wide: message + projectId
@@ -68,20 +91,24 @@ const broadcast = async (payload, orgId) => {
   // Case 4: Personalized Messages (Highest Priority)
   if (Array.isArray(personalizedMessages) && personalizedMessages.length > 0) {
     let project = null;
+    let projectChat = null;
+
     if (projectId) {
       project = await projectService.getProjectById(projectId);
       if (project.organization.toString() !== orgId.toString()) {
         throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Unauthorized: Project belongs to another organization");
       }
+      // Ensure the group chat exists for this project
+      projectChat = await ensureProjectChat(project);
     }
 
     for (const item of personalizedMessages) {
       const { userId, message: individualMessage } = item;
       try {
         let chatId;
-        if (project) {
+        if (projectChat) {
           // Use project's central group chat
-          chatId = project.chatId;
+          chatId = projectChat._id;
           // Ensure sender is in the group
           await chatService.inviteUserToGroupChat(project.owner, [senderId], chatId);
         } else {
@@ -94,7 +121,7 @@ const broadcast = async (payload, orgId) => {
           chatId,
           message: individualMessage,
           broadcastSource: project ? project._id : null,
-          recipient: project ? userId : null, // Set recipient for project privacy
+          recipient: project ? userId : null,
         });
         results.push({ userId, status: "success", messageId: newMessage._id });
       } catch (error) {
@@ -133,6 +160,10 @@ const broadcast = async (payload, orgId) => {
       throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Unauthorized: Project belongs to another organization");
     }
 
+    // Ensure the group chat exists for this project
+    const projectChat = await ensureProjectChat(project);
+    const chatId = projectChat._id;
+
     const isSelective = Array.isArray(targetUserIds) && targetUserIds.length > 0;
 
     if (isSelective) {
@@ -142,10 +173,10 @@ const broadcast = async (payload, orgId) => {
       for (const member of recipients) {
         try {
           // Ensure sender is in the group
-          await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
+          await chatService.inviteUserToGroupChat(project.owner, [senderId], chatId);
 
           const newMessage = await messageService.sendMessage(senderId, {
-            chatId: project.chatId,
+            chatId: chatId,
             message: message,
             broadcastSource: project._id,
             recipient: member._id, // Set recipient for targeted privacy
@@ -158,18 +189,14 @@ const broadcast = async (payload, orgId) => {
       return { type: "selective_project", projectId, processed: results };
     } else {
       // Case 2: Project-wide Broadcast (Group Chat)
-      if (!project.chatId) {
-        throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Project does not have an associated group chat");
-      }
-
-      await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
+      await chatService.inviteUserToGroupChat(project.owner, [senderId], chatId);
       const newMessage = await messageService.sendMessage(senderId, {
-        chatId: project.chatId,
+        chatId: chatId,
         message: message,
         broadcastSource: project._id,
       });
       
-      return { type: "project_wide", projectId, chatId: project.chatId, messageId: newMessage._id, status: "success" };
+      return { type: "project_wide", projectId, chatId: chatId, messageId: newMessage._id, status: "success" };
     }
   }
 
