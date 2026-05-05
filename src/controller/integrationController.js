@@ -33,18 +33,11 @@ const getCredentials = catchAsync(async (req, res) => {
  * (Requires Client ID/Secret Auth)
  */
 const broadcastToProject = catchAsync(async (req, res) => {
-  const { projectId, senderId, message, targetUserIds } = req.body;
   const orgId = req.integration.organization; // Attached by apiAuth middleware
-  
-  if (!projectId || !senderId || !message) {
-    return res.status(HTTP_STATUS_CODES.BAD_REQUEST).send({ 
-      message: "projectId, senderId, and message are required" 
-    });
-  }
-
-  const result = await integrationService.broadcastToProject(projectId, senderId, message, orgId, targetUserIds);
+  const result = await integrationService.broadcast(req.body, orgId);
   res.status(HTTP_STATUS_CODES.OK).send({ data: result });
 });
+
 
 module.exports = {
   generateCredentials,

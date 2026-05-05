@@ -52,79 +52,118 @@ const validateCredentials = async (clientId, clientSecret) => {
   return credential;
 };
 
+const organizationService = require("./organization.service");
+
 /**
- * Broadcasts a message to project members.
- * @param {string} projectId 
- * @param {string} senderId 
- * @param {string} messageText 
- * @param {string} orgId 
- * @param {string[]} targetUserIds - Optional subset of members
+ * Advanced Broadcast system handling 4 major cases:
+ * 1. Org-wide: message + no projectId
+ * 2. Project-wide: message + projectId
+ * 3. Selective Project: message + projectId + targetUserIds
+ * 4. Personalized: personalizedMessages array
  */
-const broadcastToProject = async (projectId, senderId, messageText, orgId, targetUserIds = []) => {
-  const project = await projectService.getProjectById(projectId);
-  
-  if (project.organization.toString() !== orgId.toString()) {
-    throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Unauthorized: Project belongs to another organization");
-  }
-
-  // Determine who receives the message
-  let recipients = project.members;
-  const isSubset = targetUserIds && targetUserIds.length > 0;
-
-  if (isSubset) {
-    const memberIdSet = new Set(project.members.map(m => m._id.toString()));
-    recipients = project.members.filter(m => targetUserIds.includes(m._id.toString()));
-    
-    // Ensure all target users are actually members of the project
-    if (recipients.length !== targetUserIds.length) {
-      throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "One or more target users are not members of this project");
-    }
-  }
-
+const broadcast = async (payload, orgId) => {
+  const { senderId, message, projectId, targetUserIds, personalizedMessages } = payload;
   const results = [];
 
-  if (isSubset) {
-    // Private Project Broadcast: Send individual messages to selected users
-    for (const member of recipients) {
-      try {
-        const chat = await chatService.accessChat(senderId, { userId: member._id, isGroupChat: false });
-        const newMessage = await messageService.sendMessage(senderId, {
-          chatId: chat._id,
-          message: messageText,
-          broadcastSource: project._id, // Attach project branding
-        });
-        results.push({ userId: member._id, status: "success", messageId: newMessage._id });
-      } catch (error) {
-        results.push({ userId: member._id, status: "failed", error: error.message });
+  // Case 4: Personalized Messages (Highest Priority)
+  if (Array.isArray(personalizedMessages) && personalizedMessages.length > 0) {
+    let project = null;
+    if (projectId) {
+      project = await projectService.getProjectById(projectId);
+      if (project.organization.toString() !== orgId.toString()) {
+        throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Unauthorized: Project belongs to another organization");
       }
     }
-  } else {
-    // Public Project Broadcast: Send to Group Chat
-    if (!project.chatId) {
-      throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Project does not have an associated group chat");
-    }
 
-    await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
-    const newMessage = await messageService.sendMessage(senderId, {
-      chatId: project.chatId,
-      message: messageText,
-      broadcastSource: project._id,
-    });
-    
-    results.push({ chatId: project.chatId, status: "success", messageId: newMessage._id });
+    for (const item of personalizedMessages) {
+      const { userId, message: individualMessage } = item;
+      try {
+        const chat = await chatService.accessChat(senderId, { userId, isGroupChat: false });
+        const newMessage = await messageService.sendMessage(senderId, {
+          chatId: chat._id,
+          message: individualMessage,
+          broadcastSource: project ? project._id : null, // Add project branding if projectId was provided
+        });
+        results.push({ userId, status: "success", messageId: newMessage._id });
+      } catch (error) {
+        results.push({ userId, status: "failed", error: error.message });
+      }
+    }
+    return { type: "personalized", projectId: projectId || null, processed: results };
   }
 
-  return {
-    projectId,
-    projectChatId: project.chatId,
-    isPrivateBroadcast: isSubset,
-    processed: results,
-  };
+  // Case 1: Organization-wide Broadcast (No projectId provided)
+  if (!projectId && message) {
+    const members = await organizationService.getMembers(orgId);
+    for (const member of members) {
+      const userId = member.user?._id || member.user;
+      if (userId.toString() === senderId.toString()) continue; // Skip sender
+
+      try {
+        const chat = await chatService.accessChat(senderId, { userId, isGroupChat: false });
+        const newMessage = await messageService.sendMessage(senderId, {
+          chatId: chat._id,
+          message: message,
+        });
+        results.push({ userId, status: "success", messageId: newMessage._id });
+      } catch (error) {
+        results.push({ userId, status: "failed", error: error.message });
+      }
+    }
+    return { type: "organization_wide", processed: results };
+  }
+
+  // Case 2 & 3: Project-based Broadcast
+  if (projectId && message) {
+    const project = await projectService.getProjectById(projectId);
+    
+    if (project.organization.toString() !== orgId.toString()) {
+      throw new ApiError(HTTP_STATUS_CODES.FORBIDDEN, "Unauthorized: Project belongs to another organization");
+    }
+
+    const isSelective = Array.isArray(targetUserIds) && targetUserIds.length > 0;
+
+    if (isSelective) {
+      // Case 3: Selective Project Broadcast (DMs with Project Badge)
+      const recipients = project.members.filter(m => targetUserIds.includes(m._id.toString()));
+      
+      for (const member of recipients) {
+        try {
+          const chat = await chatService.accessChat(senderId, { userId: member._id, isGroupChat: false });
+          const newMessage = await messageService.sendMessage(senderId, {
+            chatId: chat._id,
+            message: message,
+            broadcastSource: project._id,
+          });
+          results.push({ userId: member._id, status: "success", messageId: newMessage._id });
+        } catch (error) {
+          results.push({ userId: member._id, status: "failed", error: error.message });
+        }
+      }
+      return { type: "selective_project", projectId, processed: results };
+    } else {
+      // Case 2: Project-wide Broadcast (Group Chat)
+      if (!project.chatId) {
+        throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Project does not have an associated group chat");
+      }
+
+      await chatService.inviteUserToGroupChat(project.owner, [senderId], project.chatId);
+      const newMessage = await messageService.sendMessage(senderId, {
+        chatId: project.chatId,
+        message: message,
+        broadcastSource: project._id,
+      });
+      
+      return { type: "project_wide", projectId, chatId: project.chatId, messageId: newMessage._id, status: "success" };
+    }
+  }
+
+  throw new ApiError(HTTP_STATUS_CODES.BAD_REQUEST, "Invalid broadcast payload. Provide 'message' or 'personalizedMessages'.");
 };
 
 module.exports = {
   generateCredentials,
   getOrganizationCredentials,
   validateCredentials,
-  broadcastToProject,
+  broadcast,
 };
