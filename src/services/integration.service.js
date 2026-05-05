@@ -62,7 +62,14 @@ const organizationService = require("./organization.service");
 const ensureProjectChat = async (project) => {
   if (project.chatId) {
     const chat = await chatModel.findById(project.chatId);
-    if (chat) return chat;
+    if (chat) {
+      // Ensure broadcastSource is set (for older projects that might have the chat but not the link)
+      if (!chat.broadcastSource) {
+        chat.broadcastSource = project._id;
+        await chat.save();
+      }
+      return chat;
+    }
   }
 
   // Create a new group chat for the project
@@ -71,7 +78,10 @@ const ensureProjectChat = async (project) => {
   
   const groupChat = await chatService.createGroupChat(ownerId, `Project: ${project.name}`, memberIds);
   
-  // Link it to the project
+  // Link it to the project AND set project context on chat
+  groupChat.broadcastSource = project._id;
+  await groupChat.save();
+
   project.chatId = groupChat._id;
   await project.save();
   

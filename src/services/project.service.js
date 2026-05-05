@@ -12,6 +12,10 @@ const createProject = async (ownerId, projectBody) => {
   
   const groupChat = await chatService.createGroupChat(ownerId, `Project: ${name}`, otherMembers);
 
+  // 🔥 Set project context on the chat document immediately
+  groupChat.broadcastSource = null; // We'll set it properly after project is created
+  await groupChat.save();
+
   const project = await Project.create({
     name,
     organization,
@@ -19,6 +23,10 @@ const createProject = async (ownerId, projectBody) => {
     members: members || [],
     chatId: groupChat._id,
   });
+
+  // Now link the chat back to the project
+  groupChat.broadcastSource = project._id;
+  await groupChat.save();
 
   return project;
 };
