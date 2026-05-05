@@ -15,6 +15,7 @@ Router.post("/:id/members", auth.isAuthenticatedUser, isOrgAdmin, orgController.
 Router.post("/:id/members/create-account", auth.isAuthenticatedUser, isOrgAdmin, orgController.createMemberAccount);
 Router.get("/:id/members", auth.isAuthenticatedUser,isOrgAdmin, orgController.getMembers);
 Router.put("/:id/members/:userId", auth.isAuthenticatedUser, isOrgAdmin, orgController.updateMember);
+Router.post("/:id/members/:userId/reset-password", auth.isAuthenticatedUser, isOrgAdmin, orgController.resetMemberPassword);
 Router.delete("/:id/members/:userId", auth.isAuthenticatedUser,isOrgAdmin, orgController.removeMember);
 Router.get(
   "/",

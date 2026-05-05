@@ -112,6 +112,22 @@ exports.updateMember = async (req, res) => {
   }
 };
 
+exports.resetMemberPassword = async (req, res) => {
+  try {
+    const result = await organizationService.resetMemberPassword(req.params.id, req.params.userId);
+    res.json({
+      success: true,
+      data: result,
+      message: "Password reset successfully",
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 // ? Remove Member
 exports.removeMember = async (req, res) => {
   try {

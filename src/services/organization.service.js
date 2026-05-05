@@ -142,6 +142,26 @@ exports.updateMember = async (orgId, userId, payload) => {
   return user;
 };
 
+exports.resetMemberPassword = async (orgId, userId) => {
+  const org = await Organization.findById(orgId);
+  if (!org) throw new Error("Organization not found");
+
+  const member = org.members.find(m => m.user.toString() === userId);
+  if (!member) throw new Error("User is not a member of this organization");
+
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  const newPassword = generateStrongPassword(user.name);
+  user.password = newPassword;
+  await user.save();
+
+  return {
+    email: user.email,
+    password: newPassword,
+  };
+};
+
 // ? Remove Member
 exports.removeMember = async (orgId, userId) => {
   const org = await Organization.findById(orgId);
