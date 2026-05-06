@@ -13,6 +13,7 @@ const messagePopulate = [
     populate: [
       { path: "users", select: "-password" },
       { path: "groupAdmin", select: "-password" },
+      { path: "organization", select: "name" },
     ],
   },
   {
@@ -23,7 +24,7 @@ const messagePopulate = [
 ];
 
 const sendMessage = async (authId, userBody, fileUrls = []) => {
-  const { message, chatId, replyTo, broadcastSource, recipient } = userBody;
+  const { message, chatId, replyTo, broadcastSource, recipient, isOrgBroadcast } = userBody;
 
 
   const filesArray = fileUrls.map((file) => ({
@@ -43,6 +44,7 @@ const sendMessage = async (authId, userBody, fileUrls = []) => {
     replyTo: replyTo || null,
     broadcastSource: broadcastSource || null,
     recipient: recipient || null,
+    isOrgBroadcast: isOrgBroadcast || false,
   });
 
   newMessage = await newMessage.populate(messagePopulate);

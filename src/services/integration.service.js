@@ -89,11 +89,30 @@ const ensureProjectChat = async (project) => {
 };
 
 /**
+ * Ensures an organization has a central announcement chat.
+ */
+const ensureOrgChat = async (orgId) => {
+  const Organization = require("../model/organization.schema");
+  const org = await Organization.findById(orgId);
+  if (!org) throw new ApiError(HTTP_STATUS_CODES.NOT_FOUND, "Organization not found");
+
+  if (org.chatId) {
+    const chat = await chatModel.findById(org.chatId);
+    if (chat) return chat;
+  }
+
+  // Create a central group chat for the organization
+  const memberIds = org.members.map(m => m.user?._id || m.user).filter(id => id.toString() !== org.owner.toString());
+  const groupChat = await chatService.createGroupChat(org.owner, org.name, memberIds);
+  
+  org.chatId = groupChat._id;
+  await org.save();
+  
+  return groupChat;
+};
+
+/**
  * Advanced Broadcast system handling 4 major cases:
- * 1. Org-wide: message + no projectId
- * 2. Project-wide: message + projectId
- * 3. Selective Project: message + projectId + targetUserIds
- * 4. Personalized: personalizedMessages array
  */
 const broadcast = async (payload, orgId) => {
   const { senderId, message, projectId, targetUserIds, personalizedMessages } = payload;
@@ -150,29 +169,25 @@ const broadcast = async (payload, orgId) => {
 
   // Case 1: Organization-wide Broadcast (No projectId provided)
   if (!projectId && message) {
-    const members = await organizationService.getMembers(orgId);
-    for (const member of members) {
-      const userId = member.user?._id || member.user;
-      if (userId.toString() === senderId.toString()) continue; // Skip sender
+    const orgChat = await ensureOrgChat(orgId);
+    
+    // Ensure sender is in the org chat
+    const Organization = require("../model/organization.schema");
+    const org = await Organization.findById(orgId);
+    await chatService.inviteUserToGroupChat(org.owner, [senderId], orgChat._id);
 
-      try {
-        const chat = await chatService.accessChat(senderId, { userId, isGroupChat: false });
-        const newMessage = await messageService.sendMessage(senderId, {
-          chatId: chat._id,
-          message: message,
-        });
+    const newMessage = await messageService.sendMessage(senderId, {
+      chatId: orgChat._id,
+      message: message,
+      isOrgBroadcast: true,
+    });
 
-        // 🔥 Emit for Real-time
-        if (global.ioEmitMessage) {
-          global.ioEmitMessage("receiveMessage", newMessage);
-        }
-
-        results.push({ userId, status: "success", messageId: newMessage._id });
-      } catch (error) {
-        results.push({ userId, status: "failed", error: error.message });
-      }
+    // 🔥 Emit for Real-time
+    if (global.ioEmitMessage) {
+      global.ioEmitMessage("receiveMessage", newMessage);
     }
-    return { type: "organization_wide", processed: results };
+
+    return { type: "organization_wide", chatId: orgChat._id, messageId: newMessage._id, status: "success" };
   }
 
   // Case 2 & 3: Project-based Broadcast

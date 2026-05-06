@@ -33,7 +33,14 @@ const getCredentials = catchAsync(async (req, res) => {
  * (Requires Client ID/Secret Auth)
  */
 const broadcastToProject = catchAsync(async (req, res) => {
-  const orgId = req.integration.organization; // Attached by apiAuth middleware
+  const orgId = req.user?.organization || req.integration?.organization;
+
+  if (!orgId) {
+    return res.status(HTTP_STATUS_CODES.UNAUTHORIZED).send({ 
+      message: "Organization context required" 
+    });
+  }
+
   const result = await integrationService.broadcast(req.body, orgId);
   res.status(HTTP_STATUS_CODES.OK).send({ data: result });
 });

@@ -48,6 +48,10 @@ const Schema = new mongoose.Schema(
       ref: "user",
       default: null,
     },
+    isOrgBroadcast: {
+      type: Boolean,
+      default: false,
+    },
     seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
     reactions: [reactionSchema],
   },

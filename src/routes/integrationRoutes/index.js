@@ -3,11 +3,12 @@ const { integrationController } = require("../../controller");
 const apiAuth = require("../../middleware/apiAuth");
 const auth = require("../../middleware/auth");
 
+const flexibleAuth = require("../../middleware/flexibleAuth");
+
 const router = express.Router();
 
 /**
  * Management Routes (JWT Protected)
- * Used by organization admins to manage their platform connections.
  */
 router.post(
   "/credentials",
@@ -22,12 +23,12 @@ router.get(
 );
 
 /**
- * Integration Endpoints (Client ID/Secret Protected)
- * Used by third-party platforms (n8n, MS Teams, etc.)
+ * Integration Endpoints (Flexible Protected)
+ * Allows EITHER JWT (our UI) OR Client ID/Secret (n8n)
  */
 router.post(
   "/broadcast",
-  apiAuth,
+  flexibleAuth,
   integrationController.broadcastToProject
 );
 

@@ -46,6 +46,10 @@ const organizationSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    chatId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "chat",
+    },
   },
   { timestamps: true }
 );
