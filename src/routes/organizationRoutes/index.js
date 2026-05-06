@@ -10,6 +10,7 @@ const Router = express.Router()
 
 Router.post("/", auth.isAuthenticatedUser,  orgController.createOrganization);
 Router.get("/me", auth.isAuthenticatedUser, orgController.getMyOrganization);
+Router.put("/:id", auth.isAuthenticatedUser, isOrgAdmin, orgController.updateOrganization);
 
 Router.post("/:id/members", auth.isAuthenticatedUser, isOrgAdmin, orgController.addMember);
 Router.post("/:id/members/create-account", auth.isAuthenticatedUser, isOrgAdmin, orgController.createMemberAccount);

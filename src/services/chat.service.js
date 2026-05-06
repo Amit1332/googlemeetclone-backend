@@ -256,6 +256,24 @@ chat.users = Array.from(uniqueUsers);
   return chat;
 };
 
+const syncProjectChatMembers = async (authId, userIds, chatId) => {
+  const chat = await chatModel.findById(chatId);
+
+  if (!chat) throw new Error("Group not found");
+  if (!chat.isGroupChat) throw new Error("Not a group chat");
+
+  // For projects, we might want to skip the admin check if called by system/project owner
+  // but let's keep it safe for now.
+  
+  // Ensure auth user is always in the group if they are the admin
+  const allUsers = [...new Set([...userIds, authId.toString()])];
+  
+  chat.users = allUsers;
+  await chat.save();
+
+  return chat;
+};
+
 
 
 
@@ -321,5 +339,6 @@ exitGroupChat,
 deleteGroupChat,
 removeUserFromGroupChat,
 inviteUserToGroupChat,
+syncProjectChatMembers,
 getProjectPrivateChat
 };

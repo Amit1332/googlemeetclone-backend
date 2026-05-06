@@ -34,6 +34,22 @@ exports.getMyOrganization = async (userId) => {
   return user.organization;
 };
 
+// ? Update Organization
+exports.updateOrganization = async (orgId, payload) => {
+  const { name } = payload;
+  const updateData = {};
+  
+  if (name) {
+    updateData.name = name;
+    updateData.slug = name.toLowerCase().replace(/\s+/g, "-");
+  }
+
+  const org = await Organization.findByIdAndUpdate(orgId, updateData, { new: true });
+  if (!org) throw new Error("Organization not found");
+
+  return org;
+};
+
 // ? Add Member
 exports.addMember = async (orgId, userId, role = "member") => {
   const org = await Organization.findById(orgId);

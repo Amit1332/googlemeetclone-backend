@@ -24,6 +24,18 @@ router.get(
   projectController.getProject
 );
 
+router.put(
+  "/:id",
+  auth.isAuthenticatedUser,
+  projectController.updateProject
+);
+
+router.delete(
+  "/:id",
+  auth.isAuthenticatedUser,
+  projectController.deleteProject
+);
+
 router.post(
   "/add-members",
   auth.isAuthenticatedUser,

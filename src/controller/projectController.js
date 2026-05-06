@@ -35,9 +35,21 @@ const addMembers = catchAsync(async (req, res) => {
   res.status(HTTP_STATUS_CODES.OK).send({ data: project });
 });
 
+const updateProject = catchAsync(async (req, res) => {
+  const project = await projectService.updateProject(req.params.id, req.body);
+  res.status(HTTP_STATUS_CODES.OK).send({ data: project });
+});
+
+const deleteProject = catchAsync(async (req, res) => {
+  await projectService.deleteProject(req.params.id);
+  res.status(HTTP_STATUS_CODES.NO_CONTENT).send();
+});
+
 module.exports = {
   createProject,
   getProjects,
   getProject,
   addMembers,
+  updateProject,
+  deleteProject,
 };

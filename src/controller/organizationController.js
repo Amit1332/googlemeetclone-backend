@@ -39,6 +39,26 @@ exports.getMyOrganization = async (req, res) => {
   }
 };
 
+// ? Update Organization
+exports.updateOrganization = async (req, res) => {
+  try {
+    const org = await organizationService.updateOrganization(
+      req.params.id,
+      req.body
+    );
+
+    res.json({
+      success: true,
+      data: org,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 // ? Add Member
 exports.addMember = async (req, res) => {
   try {
